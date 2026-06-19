@@ -1,44 +1,74 @@
-# GymTracker — Instrucciones de instalación
+# GymTracker — Instalación en GitHub Pages
 
-## Qué necesitás para instalar la app
+## Por qué GitHub Pages
 
-La app es una **PWA (Progressive Web App)** — esto significa que es un sitio web que se comporta como una app nativa en el celular. Para que funcione necesitás hostearlo en algún servidor con HTTPS.
+A diferencia de Netlify, GitHub Pages **no tiene límite de créditos** para sitios estáticos como este. Es gratis sin restricciones de deploys ni de tráfico para este tipo de proyecto.
 
 ---
 
-## Opción 1 — GitHub Pages (gratis, recomendado)
+## Paso a paso
 
-1. Creá una cuenta en https://github.com si no tenés
-2. Creá un repositorio nuevo (ej: `gymtracker`)
-3. Subí estos archivos al repositorio:
+### 1. Crear el repositorio
+1. Entrá a **https://github.com** (creá una cuenta si no tenés)
+2. Arriba a la derecha, tocá el **+** → **New repository**
+3. Nombre del repositorio: `gymtracker` (o el que quieras)
+4. Dejalo **Público**
+5. NO marques "Add a README" — ya tenemos uno
+6. Tocá **Create repository**
+
+### 2. Subir los archivos
+**Opción fácil (sin usar terminal):**
+1. En la página del repositorio recién creado, tocá **"uploading an existing file"**
+2. Arrastrá estos archivos y carpetas:
    - `index.html`
    - `manifest.json`
    - `sw.js`
-   - `icons/icon-192.png`
-   - `icons/icon-512.png`
-4. Andá a Settings → Pages → Source: seleccioná `main` branch → Save
-5. En unos segundos tu app va a estar en `https://TU_USUARIO.github.io/gymtracker`
+   - la carpeta `icons/` completa (con los 2 PNG adentro)
+3. Abajo, tocá **Commit changes**
 
-**Para instalar en el celular:**
-- **Android (Chrome):** Abrí la URL, aparece un banner "Agregar a pantalla de inicio" → tocá Instalar
-- **iOS (Safari):** Abrí la URL → tocá el botón de Compartir → "Agregar a pantalla de inicio"
+### 3. Activar GitHub Pages
+1. En el repositorio, andá a **Settings** (pestaña arriba)
+2. En el menú izquierdo, tocá **Pages**
+3. En "Source", seleccioná **Deploy from a branch**
+4. Branch: **main** — Folder: **/ (root)**
+5. Tocá **Save**
+6. Esperá 1-2 minutos
+
+### 4. Tu URL
+Va a quedar en:
+```
+https://TU-USUARIO-DE-GITHUB.github.io/gymtracker/
+```
 
 ---
 
-## Opción 2 — Netlify (drag & drop, aún más fácil)
+## Para actualizar la app en el futuro
 
-1. Andá a https://netlify.com y creá una cuenta gratis
-2. En el dashboard, arrastrá la carpeta `gymtracker` completa al área de drop
-3. Netlify te da una URL automática con HTTPS
-4. Instalá desde el celular como en la opción 1
+1. Hacés los cambios en `index.html` (o el archivo que corresponda)
+2. En el repositorio de GitHub, entrás al archivo que cambiaste
+3. Tocás el ícono de lápiz (✏️ Edit)
+4. Pegás el contenido nuevo
+5. Tocás **Commit changes**
+6. En 1-2 minutos el cambio está en vivo
+
+**Importante:** cada vez que actualices `index.html`, recordá también subir un `sw.js` con el número de versión incrementado (`gymtracker-v15` → `gymtracker-v16`, etc.) para forzar que los celulares con la app instalada bajen la versión nueva.
 
 ---
 
-## Opción 3 — Vercel
+## Instalar en el celular
 
-1. Instalá Vercel CLI: `npm i -g vercel`
-2. En la carpeta del proyecto: `vercel`
-3. Seguí los pasos → te da una URL HTTPS
+- **Android (Chrome):** abrís la URL, aparece banner "Instalar app"
+- **iOS (Safari):** abrís la URL → botón Compartir → "Agregar a pantalla de inicio"
+
+---
+
+## Cuando tengas dominio propio
+
+Cuando compres un dominio (ej: `gymtracker.com`):
+1. En Settings → Pages de tu repositorio, hay un campo **"Custom domain"**
+2. Ingresás tu dominio ahí
+3. En el panel de tu proveedor de dominio (GoDaddy, Namecheap, etc.), agregás los registros DNS que GitHub te indica
+4. En unas horas tu dominio propio apunta directo a la app, con HTTPS automático
 
 ---
 
@@ -50,14 +80,6 @@ gymtracker/
 ├── manifest.json     ← configuración PWA
 ├── sw.js             ← service worker (modo offline)
 └── icons/
-    ├── icon-192.png  ← ícono para Android
-    └── icon-512.png  ← ícono splash screen
+    ├── icon-192.png
+    └── icon-512.png
 ```
-
-## Características
-
-- Funciona 100% offline después de la primera carga
-- Los datos se guardan en el dispositivo (localStorage)
-- Instalable como app nativa en iOS y Android
-- Dark mode automático según el sistema
-- Compatible con la barra de estado de iOS (safe area insets)

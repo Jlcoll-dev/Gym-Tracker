@@ -199,7 +199,11 @@
     <div class="screen" id="screen-rutinas">
       <div class="section-label">Rutinas activas</div>
       <div id="rutinasList"></div>
-      <button class="btn btn-full" onclick="showScreen('nueva-rutina')">+ Nueva rutina</button>
+      <div class="inline-row" style="margin-bottom:0">
+        <button class="btn flex-1" onclick="showScreen('nueva-rutina')">+ Crear manualmente</button>
+        <button class="btn btn-primary flex-1" onclick="showScreen('importar-ia')">✨ Importar con IA</button>
+      </div>
+      <button class="btn btn-full" style="margin-top:8px;color:var(--text2)" onclick="showScreen('rutinas-ejemplo')">Usar una rutina de ejemplo</button>
       <div class="section-label" style="margin-top:16px">Archivadas</div>
       <div id="rutinaArchivadasList"></div>
     </div>
@@ -215,6 +219,38 @@
       <div id="nrDaysList"></div>
       <button class="btn btn-full" onclick="addNrDay()">+ Agregar día</button>
       <button class="btn btn-primary btn-full" style="margin-top:10px" onclick="saveNuevaRutina()">Guardar rutina</button>
+    </div>
+
+    <!-- IMPORTAR CON IA -->
+    <div class="screen" id="screen-importar-ia">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:40px;margin-bottom:8px">✨</div>
+        <div style="font-size:18px;font-weight:700;margin-bottom:6px">Importar rutina con IA</div>
+        <div style="font-size:13px;color:var(--text2);line-height:1.5">Usá ChatGPT, Claude o cualquier IA para convertir tu rutina (foto, PDF o texto) en un formato que GymTracker entiende.</div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">Paso 1 — Copiá este prompt</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Pegalo en ChatGPT, Claude o la IA que prefieras, junto con tu rutina (foto, PDF o texto).</div>
+        <button class="btn btn-primary btn-full" onclick="copiarPromptIA()">📋 Copiar prompt</button>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">Paso 2 — Pegá la respuesta de la IA acá</div>
+        <textarea id="iaJsonInput" placeholder='La IA te va a devolver algo como: {"nombre": "Rutina...", "semanas": 6, "dias": [...]}' style="min-height:140px;font-family:monospace;font-size:12px"></textarea>
+      </div>
+
+      <button class="btn btn-primary btn-full" style="padding:14px;font-size:15px" onclick="procesarImportIA()">Crear rutina desde este texto</button>
+      <div id="iaImportError" style="display:none;margin-top:10px;padding:10px;background:var(--red-light);border-radius:var(--radius-sm);font-size:12px;color:var(--red)"></div>
+    </div>
+
+    <!-- RUTINAS DE EJEMPLO -->
+    <div class="screen" id="screen-rutinas-ejemplo">
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:18px;font-weight:700;margin-bottom:6px">Rutinas de ejemplo</div>
+        <div style="font-size:13px;color:var(--text2)">Elegí una para empezar y editala como quieras después.</div>
+      </div>
+      <div id="rutinasEjemploList"></div>
     </div>
 
     <!-- DETALLE RUTINA -->
@@ -462,6 +498,8 @@ function showScreen(name,opts){
   if(name==='rutinas') renderRutinas();
   if(name==='progreso') renderProgreso(opts&&opts.ex);
   if(name==='nueva-rutina') initNuevaRutina();
+  if(name==='rutinas-ejemplo') renderRutinasEjemplo();
+  if(name==='importar-ia') document.getElementById('iaImportError').style.display='none';
   if(name==='rutina-detalle'&&opts) renderRutinaDetalle(opts.rid,opts.edit||false);
   if(name==='dieta') loadDietaScreen();
   if(name==='perfil') renderPerfil();
@@ -896,6 +934,232 @@ function saveNuevaRutina(){
   document.querySelectorAll('#nrDaysList .day-card').forEach(dayCard=>{ const ni=dayCard.querySelector('.day-name-input'); const diaNombre=ni?ni.value.trim():'Día'; const ejercicios=[]; dayCard.querySelectorAll('.ex-block').forEach(exBlock=>{ const nameEl=exBlock.querySelector('.ac-input'); if(!nameEl) return; const exNombre=nameEl.value.trim(); if(!exNombre) return; const series=[]; exBlock.querySelectorAll('.serie-row').forEach(row=>{const ins=row.querySelectorAll('.serie-input');series.push({reps:parseInt(ins[0].value)||8,peso:parseFloat(ins[1].value)||0});}); ejercicios.push({id:'ex-'+Date.now()+Math.random(),nombre:exNombre,series}); }); if(diaNombre||ejercicios.length) dias.push({id:'d-'+Date.now()+Math.random(),nombre:diaNombre||'Día',ejercicios}); });
   if(!dias.length){showToast('Agregá al menos un día');return;}
   rutinas.push({id:'r-'+Date.now(),nombre,semanas,activa:true,dias}); save(); showToast('Rutina guardada'); showScreen('rutinas');
+}
+
+// ── IMPORTAR RUTINA CON IA ──────────────────────────────────────
+
+const PROMPT_IA_RUTINA = `Quiero que conviertas la siguiente rutina de gimnasio a un formato JSON específico. Te voy a pegar o adjuntar mi rutina (puede ser una foto, un PDF o texto).
+
+INSTRUCCIONES IMPORTANTES:
+- Devolvé SOLO el JSON, sin explicaciones antes ni después, sin bloques de código markdown.
+- Identificá los DÍAS de entrenamiento (ej: "Día 1 - Pecho y Tríceps", "Push", "Piernas", etc.)
+- Para cada día, identificá los EJERCICIOS en el orden en que aparecen.
+- Para cada ejercicio, identificá las SERIES con sus repeticiones y peso. Si no hay peso especificado, poné 0. Si las repeticiones son un rango (ej "8-12"), usá el número más alto.
+- Si la rutina no especifica una duración en semanas, asumí 4.
+- Si un ejercicio tiene "3x10" (3 series de 10 reps) sin pesos distintos por serie, repetí la misma serie 3 veces.
+
+Respondé ÚNICAMENTE con un JSON con esta estructura exacta:
+
+{
+  "nombre": "Nombre de la rutina",
+  "semanas": 4,
+  "dias": [
+    {
+      "nombre": "Nombre del día (ej: Pecho y Tríceps)",
+      "ejercicios": [
+        {
+          "nombre": "Nombre del ejercicio",
+          "series": [
+            {"reps": 12, "peso": 0},
+            {"reps": 10, "peso": 0},
+            {"reps": 8, "peso": 0}
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Acá está mi rutina:
+`;
+
+function copiarPromptIA() {
+  navigator.clipboard.writeText(PROMPT_IA_RUTINA).then(() => {
+    showToast('Prompt copiado — pegalo en tu IA junto con tu rutina');
+  }).catch(() => {
+    // fallback para navegadores sin permiso de clipboard
+    const ta = document.createElement('textarea');
+    ta.value = PROMPT_IA_RUTINA;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); showToast('Prompt copiado'); }
+    catch(e) { showToast('No se pudo copiar — seleccioná el texto manualmente'); }
+    document.body.removeChild(ta);
+  });
+}
+
+function procesarImportIA() {
+  const raw = document.getElementById('iaJsonInput').value.trim();
+  const errorBox = document.getElementById('iaImportError');
+  errorBox.style.display = 'none';
+
+  if (!raw) { mostrarErrorIA('Pegá la respuesta de la IA antes de continuar.'); return; }
+
+  // limpiar posibles bloques de código markdown que la IA pudo agregar
+  let cleaned = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+  let data;
+  try {
+    data = JSON.parse(cleaned);
+  } catch (e) {
+    mostrarErrorIA('No pudimos leer el texto como JSON. Revisá que copiaste la respuesta completa de la IA, sin texto extra antes o después.');
+    return;
+  }
+
+  // validar estructura mínima
+  if (!data.nombre || !Array.isArray(data.dias) || data.dias.length === 0) {
+    mostrarErrorIA('El formato no tiene la estructura esperada (falta "nombre" o "dias"). Probá pedirle a la IA que respete exactamente el formato del prompt.');
+    return;
+  }
+
+  const dias = [];
+  for (const dia of data.dias) {
+    if (!dia.nombre || !Array.isArray(dia.ejercicios)) continue;
+    const ejercicios = [];
+    for (const ex of dia.ejercicios) {
+      if (!ex.nombre) continue;
+      const series = Array.isArray(ex.series) && ex.series.length
+        ? ex.series.map(s => ({ reps: parseInt(s.reps) || 8, peso: parseFloat(s.peso) || 0 }))
+        : [{ reps: 12, peso: 0 }, { reps: 10, peso: 0 }, { reps: 8, peso: 0 }];
+      ejercicios.push({ id: 'ex-' + Date.now() + Math.random(), nombre: ex.nombre, series });
+    }
+    if (ejercicios.length) dias.push({ id: 'd-' + Date.now() + Math.random(), nombre: dia.nombre, ejercicios });
+  }
+
+  if (!dias.length) {
+    mostrarErrorIA('No se encontraron ejercicios válidos en el JSON.');
+    return;
+  }
+
+  const nuevaRutina = {
+    id: 'r-' + Date.now(),
+    nombre: data.nombre,
+    semanas: parseInt(data.semanas) || 4,
+    activa: true,
+    dias
+  };
+  rutinas.push(nuevaRutina);
+  save();
+  document.getElementById('iaJsonInput').value = '';
+  showToast('¡Rutina importada correctamente!');
+  showScreen('rutinas');
+}
+
+function mostrarErrorIA(msg) {
+  const box = document.getElementById('iaImportError');
+  box.textContent = msg;
+  box.style.display = 'block';
+}
+
+// ── RUTINAS DE EJEMPLO ───────────────────────────────────────────
+const RUTINAS_EJEMPLO = [
+  {
+    nombre: 'Full Body (3 días)',
+    descripcion: 'Ideal para principiantes o personas con poco tiempo. Todo el cuerpo en cada sesión.',
+    semanas: 4,
+    dias: [
+      { nombre: 'Full Body A', ejercicios: [
+        { nombre: 'Sentadilla', series: [{reps:12,peso:0},{reps:10,peso:0},{reps:8,peso:0}] },
+        { nombre: 'Press Banca', series: [{reps:12,peso:0},{reps:10,peso:0},{reps:8,peso:0}] },
+        { nombre: 'Remo con Barra', series: [{reps:12,peso:0},{reps:10,peso:0},{reps:8,peso:0}] },
+        { nombre: 'Press Militar', series: [{reps:12,peso:0},{reps:10,peso:0}] },
+      ]},
+      { nombre: 'Full Body B', ejercicios: [
+        { nombre: 'Peso Muerto', series: [{reps:10,peso:0},{reps:8,peso:0},{reps:6,peso:0}] },
+        { nombre: 'Press Inclinado', series: [{reps:12,peso:0},{reps:10,peso:0},{reps:8,peso:0}] },
+        { nombre: 'Dominadas', series: [{reps:8,peso:0},{reps:6,peso:0}] },
+        { nombre: 'Curl Bíceps', series: [{reps:12,peso:0},{reps:10,peso:0}] },
+      ]},
+      { nombre: 'Full Body C', ejercicios: [
+        { nombre: 'Prensa', series: [{reps:15,peso:0},{reps:12,peso:0},{reps:10,peso:0}] },
+        { nombre: 'Fondos', series: [{reps:12,peso:0},{reps:10,peso:0}] },
+        { nombre: 'Jalón al Pecho', series: [{reps:12,peso:0},{reps:10,peso:0},{reps:8,peso:0}] },
+        { nombre: 'Elevaciones Laterales', series: [{reps:15,peso:0},{reps:12,peso:0}] },
+      ]},
+    ]
+  },
+  {
+    nombre: 'Push / Pull / Legs',
+    descripcion: 'Clásica división de 3 días: empuje, tracción y piernas. Para nivel intermedio.',
+    semanas: 6,
+    dias: [
+      { nombre: 'Push (Empuje)', ejercicios: [
+        { nombre: 'Press Banca', series: [{reps:12,peso:0},{reps:10,peso:0},{reps:8,peso:0}] },
+        { nombre: 'Press Militar', series: [{reps:12,peso:0},{reps:10,peso:0},{reps:8,peso:0}] },
+        { nombre: 'Aperturas en Polea', series: [{reps:15,peso:0},{reps:12,peso:0}] },
+        { nombre: 'Tríceps Polea', series: [{reps:15,peso:0},{reps:12,peso:0},{reps:10,peso:0}] },
+      ]},
+      { nombre: 'Pull (Tracción)', ejercicios: [
+        { nombre: 'Dominadas', series: [{reps:8,peso:0},{reps:6,peso:0},{reps:5,peso:0}] },
+        { nombre: 'Remo con Barra', series: [{reps:12,peso:0},{reps:10,peso:0},{reps:8,peso:0}] },
+        { nombre: 'Curl Bíceps', series: [{reps:12,peso:0},{reps:10,peso:0},{reps:8,peso:0}] },
+        { nombre: 'Face Pull', series: [{reps:15,peso:0},{reps:12,peso:0}] },
+      ]},
+      { nombre: 'Legs (Piernas)', ejercicios: [
+        { nombre: 'Sentadilla', series: [{reps:12,peso:0},{reps:10,peso:0},{reps:8,peso:0}] },
+        { nombre: 'Prensa', series: [{reps:15,peso:0},{reps:12,peso:0},{reps:10,peso:0}] },
+        { nombre: 'Extensiones Cuádriceps', series: [{reps:15,peso:0},{reps:12,peso:0}] },
+        { nombre: 'Curl Femoral', series: [{reps:15,peso:0},{reps:12,peso:0}] },
+      ]},
+    ]
+  },
+  {
+    nombre: 'Torso / Pierna (4 días)',
+    descripcion: 'División de 4 días alternando torso y pierna. Buen volumen semanal.',
+    semanas: 6,
+    dias: [
+      { nombre: 'Torso A', ejercicios: [
+        { nombre: 'Press Banca', series: [{reps:10,peso:0},{reps:8,peso:0},{reps:6,peso:0}] },
+        { nombre: 'Remo con Barra', series: [{reps:10,peso:0},{reps:8,peso:0},{reps:6,peso:0}] },
+        { nombre: 'Press Militar', series: [{reps:12,peso:0},{reps:10,peso:0}] },
+        { nombre: 'Curl Bíceps', series: [{reps:12,peso:0},{reps:10,peso:0}] },
+      ]},
+      { nombre: 'Pierna A', ejercicios: [
+        { nombre: 'Sentadilla', series: [{reps:10,peso:0},{reps:8,peso:0},{reps:6,peso:0}] },
+        { nombre: 'Peso Muerto Rumano', series: [{reps:12,peso:0},{reps:10,peso:0}] },
+        { nombre: 'Extensiones Cuádriceps', series: [{reps:15,peso:0},{reps:12,peso:0}] },
+      ]},
+      { nombre: 'Torso B', ejercicios: [
+        { nombre: 'Press Inclinado', series: [{reps:12,peso:0},{reps:10,peso:0},{reps:8,peso:0}] },
+        { nombre: 'Dominadas', series: [{reps:8,peso:0},{reps:6,peso:0}] },
+        { nombre: 'Elevaciones Laterales', series: [{reps:15,peso:0},{reps:12,peso:0}] },
+        { nombre: 'Tríceps Polea', series: [{reps:15,peso:0},{reps:12,peso:0}] },
+      ]},
+      { nombre: 'Pierna B', ejercicios: [
+        { nombre: 'Prensa', series: [{reps:15,peso:0},{reps:12,peso:0},{reps:10,peso:0}] },
+        { nombre: 'Zancadas', series: [{reps:12,peso:0},{reps:10,peso:0}] },
+        { nombre: 'Curl Femoral', series: [{reps:15,peso:0},{reps:12,peso:0}] },
+      ]},
+    ]
+  }
+];
+
+function renderRutinasEjemplo() {
+  const c = document.getElementById('rutinasEjemploList');
+  c.innerHTML = RUTINAS_EJEMPLO.map((r, i) => `
+    <div class="card" style="margin-bottom:10px">
+      <div class="card-title">${r.nombre}</div>
+      <div class="card-sub" style="margin-bottom:8px">${r.descripcion}</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">${r.dias.length} días · ${r.semanas} semanas</div>
+      <button class="btn btn-primary btn-full" onclick="usarRutinaEjemplo(${i})">Usar esta rutina</button>
+    </div>`).join('');
+}
+
+function usarRutinaEjemplo(idx) {
+  const ejemplo = RUTINAS_EJEMPLO[idx];
+  const dias = ejemplo.dias.map(dia => ({
+    id: 'd-' + Date.now() + Math.random(),
+    nombre: dia.nombre,
+    ejercicios: dia.ejercicios.map(ex => ({
+      id: 'ex-' + Date.now() + Math.random(),
+      nombre: ex.nombre,
+      series: ex.series.map(s => ({ ...s }))
+    }))
+  }));
+  rutinas.push({ id: 'r-' + Date.now(), nombre: ejemplo.nombre, semanas: ejemplo.semanas, activa: true, dias });
+  save();
+  showToast('Rutina "' + ejemplo.nombre + '" agregada');
+  showScreen('rutinas');
 }
 
 // ── AUTOCOMPLETE ───────────────────────────────────────────────

@@ -1,8 +1,8 @@
-const CACHE = 'gymtracker-v14';
+const CACHE = 'gymtracker-v16';
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
+  './',
+  './index.html',
+  './manifest.json',
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js'
 ];
 
