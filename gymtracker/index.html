@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="GymTracker">
+  <meta name="theme-color" content="#534AB7">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <title>GymTracker</title>
+  <style>
+    :root {
+      --purple: #534AB7;
+      --purple-light: #EEEDFE;
+      --purple-dark: #3C3489;
+      --purple-mid: #AFA9EC;
+      --green: #3B6D11;
+      --green-light: #EAF3DE;
+      --red: #A32D2D;
+      --red-light: #F09595;
+      --bg: #ffffff;
+      --bg2: #f5f5f3;
+      --bg3: #eeede8;
+      --text: #1a1a1a;
+      --text2: #666;
+      --text3: #999;
+      --border: rgba(0,0,0,0.12);
+      --border2: rgba(0,0,0,0.22);
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1c1e;
+        --bg2: #2c2c2e;
+        --bg3: #3a3a3c;
+        --text: #f2f2f7;
+        --text2: #ababab;
+        --text3: #6e6e73;
+        --border: rgba(255,255,255,0.12);
+        --border2: rgba(255,255,255,0.22);
+        --purple-light: #2d2a5e;
+        --purple-dark: #c5c0f0;
+        --green-light: #1a2e0a;
+        --green: #7dc855;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; overflow: hidden; background: var(--bg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: var(--text); }
+    .app { max-width: 430px; margin: 0 auto; height: 100%; display: flex; flex-direction: column; position: relative; }
+    .topbar { padding: 14px 16px; background: var(--bg); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; padding-top: calc(14px + env(safe-area-inset-top)); }
+    .topbar h1 { font-size: 17px; font-weight: 600; flex: 1; }
+    .back-btn { font-size: 22px; cursor: pointer; color: var(--text2); border: none; background: none; padding: 0 4px; line-height: 1; }
+    .topbar-action { font-size: 14px; color: var(--purple); border: none; background: none; cursor: pointer; font-weight: 600; padding: 4px 6px; }
+    .save-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); opacity: 0; transition: opacity .3s; flex-shrink: 0; }
+    .save-dot.show { opacity: 1; }
+    .screens { flex: 1; overflow: hidden; position: relative; }
+    .screen { position: absolute; inset: 0; overflow-y: auto; padding: 14px 16px 24px; display: none; -webkit-overflow-scrolling: touch; }
+    .screen.active { display: block; }
+    .nav { display: flex; border-top: 0.5px solid var(--border); background: var(--bg); flex-shrink: 0; padding-bottom: env(safe-area-inset-bottom); }
+    .nav-btn { flex: 1; padding: 10px 4px 8px; border: none; background: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; color: var(--text3); font-family: inherit; }
+    .nav-btn.active { color: var(--purple); }
+    .nav-icon { font-size: 20px; line-height: 1; }
+    .section-label { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .06em; margin: 16px 0 8px; }
+    .section-label:first-child { margin-top: 0; }
+    .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 8px; }
+    .card-title { font-size: 14px; font-weight: 600; }
+    .card-sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
+    .btn { border: 0.5px solid var(--border2); border-radius: var(--radius-sm); background: none; padding: 9px 14px; font-size: 13px; cursor: pointer; color: var(--text); font-family: inherit; }
+    .btn-primary { background: var(--purple); color: #fff; border-color: var(--purple); }
+    .btn-danger { color: var(--red); border-color: var(--red-light); background: none; }
+    .btn-sm { padding: 6px 11px; font-size: 12px; }
+    .btn-xs { padding: 4px 9px; font-size: 11px; }
+    .btn-full { width: 100%; margin-top: 8px; }
+    .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--purple-light); color: var(--purple-dark); }
+    .badge-gray { background: var(--bg2); color: var(--text2); }
+    .row { display: flex; align-items: center; gap: 8px; }
+    .flex-1 { flex: 1; }
+    input[type=text], input[type=number], select, textarea {
+      width: 100%; border: 0.5px solid var(--border2); border-radius: var(--radius-sm);
+      padding: 9px 11px; font-size: 15px; font-family: inherit; color: var(--text);
+      background: var(--bg); -webkit-appearance: none; appearance: none;
+    }
+    input[type=number] { -moz-appearance: textfield; }
+    input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; }
+    textarea { min-height: 70px; resize: none; }
+    label { font-size: 12px; color: var(--text2); display: block; margin-bottom: 4px; }
+    .form-group { margin-bottom: 12px; }
+    hr.divider { border: none; border-top: 0.5px solid var(--border); margin: 10px 0; }
+    .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .metric-card { background: var(--bg2); border-radius: var(--radius-sm); padding: 10px 12px; }
+    .metric-label { font-size: 11px; color: var(--text2); }
+    .metric-val { font-size: 21px; font-weight: 600; }
+    .metric-unit { font-size: 12px; color: var(--text2); font-weight: 400; }
+    .toast { position: fixed; bottom: calc(72px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); background: var(--purple); color: #fff; padding: 9px 20px; border-radius: 20px; font-size: 13px; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 999; white-space: nowrap; font-weight: 500; }
+    .toast.show { opacity: 1; }
+    .day-card { border: 0.5px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: visible; }
+    .day-header { padding: 12px 14px; background: var(--bg2); display: flex; align-items: center; gap: 8px; cursor: pointer; border-radius: var(--radius); }
+    .day-header.open { border-radius: var(--radius) var(--radius) 0 0; }
+    .day-header-title { font-size: 14px; font-weight: 600; flex: 1; }
+    .day-body { padding: 10px 12px; display: none; }
+    .day-body.open { display: block; }
+    .ex-block { border: 0.5px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 8px; overflow: visible; }
+    .ex-header { padding: 10px 12px; display: flex; align-items: center; gap: 8px; }
+    .ex-name-static { font-size: 13px; font-weight: 600; flex: 1; }
+    .ex-last-tag { font-size: 11px; color: var(--purple); }
+    .series-container { padding: 0 12px 6px; }
+    .serie-row { display: grid; grid-template-columns: 26px 1fr 1fr 32px; gap: 6px; align-items: center; margin-bottom: 8px; }
+    .serie-num { font-size: 12px; font-weight: 600; color: var(--text2); text-align: center; }
+    .serie-input { border: 0.5px solid var(--border2); border-radius: var(--radius-sm); padding: 8px; font-size: 15px; font-family: inherit; color: var(--text); background: var(--bg); text-align: center; width: 100%; }
+    .serie-del { border: none; background: none; cursor: pointer; font-size: 18px; color: var(--text3); padding: 0; line-height: 1; text-align: center; }
+    .serie-headers { display: grid; grid-template-columns: 26px 1fr 1fr 32px; gap: 6px; margin-bottom: 4px; padding: 0 12px; }
+    .serie-col-label { font-size: 10px; color: var(--text3); text-align: center; }
+    .notes-toggle { font-size: 11px; color: var(--text2); cursor: pointer; padding: 0 12px 10px; display: block; }
+    .notes-area { padding: 0 12px 10px; display: none; }
+    .notes-area.open { display: block; }
+    .chip-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .chip { font-size: 12px; padding: 5px 12px; border-radius: 20px; border: 0.5px solid var(--border); color: var(--text2); cursor: pointer; background: none; font-family: inherit; }
+    .chip.active { background: var(--purple-light); color: var(--purple-dark); border-color: var(--purple-mid); }
+    .progress-wrap { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 12px; margin-bottom: 10px; }
+    .inline-row { display: flex; gap: 8px; margin-bottom: 0; }
+    .inline-row > * { flex: 1; }
+    .ac-wrap { position: relative; }
+    .ac-input { width: 100%; border: 0.5px solid var(--border2); border-radius: var(--radius-sm); padding: 8px 10px; font-size: 14px; font-family: inherit; color: var(--text); background: var(--bg); }
+    .ac-dropdown { position: absolute; top: calc(100% + 3px); left: 0; right: 0; background: var(--bg); border: 0.5px solid var(--border2); border-radius: var(--radius-sm); z-index: 100; max-height: 180px; overflow-y: auto; display: none; box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+    .ac-dropdown.open { display: block; }
+    .ac-item { padding: 10px 12px; font-size: 14px; cursor: pointer; color: var(--text); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 6px; }
+    .ac-item:last-child { border-bottom: none; }
+    .ac-item:active { background: var(--bg2); }
+    .ac-item-hist { font-size: 10px; color: var(--purple); padding: 1px 6px; border-radius: 10px; background: var(--purple-light); }
+    .edit-banner { background: var(--purple-light); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 12px; font-size: 12px; color: var(--purple-dark); }
+    .ex-block.editing { border-color: var(--purple-mid); }
+    .day-name-input { flex: 1; border: none; background: transparent; font-size: 14px; font-weight: 600; color: var(--text); padding: 0; font-family: inherit; }
+    .day-name-input:focus { outline: none; border-bottom: 1.5px solid var(--purple); }
+    .edit-ex-header { padding: 8px 12px; display: flex; align-items: center; gap: 8px; background: var(--bg2); border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--text2); }
+    .empty-state .emoji { font-size: 40px; margin-bottom: 12px; }
+    .install-banner { background: var(--purple-light); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+    .install-banner-text { flex: 1; font-size: 13px; color: var(--purple-dark); }
+    .install-banner-text strong { display: block; font-size: 14px; margin-bottom: 2px; }
+  </style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="topbar">
+    <button class="back-btn" id="backBtn" style="display:none" onclick="goBack()">&#8592;</button>
+    <h1 id="topTitle">GymTracker</h1>
+    <span class="save-dot" id="saveDot"></span>
+    <button class="topbar-action" id="topAction" style="display:none"></button>
+  </div>
+
+  <div class="screens">
+    <!-- HOME -->
+    <!-- ONBOARDING -->
+    <div class="screen" id="screen-onboarding">
+      <div id="onboardingContent"></div>
+    </div>
+
+    <div class="screen active" id="screen-home">
+      <div id="installBanner"></div>
+      <div class="section-label">Rutina activa</div>
+      <div id="homeRutinaCard"></div>
+      <div class="section-label">Días de esta rutina</div>
+      <div id="homeDays"></div>
+      <button class="btn btn-full" onclick="showScreen('rutinas')" style="margin-top:4px">Ver todas las rutinas</button>
+      <div class="section-label" style="margin-top:16px">Progreso reciente</div>
+      <div class="card" style="cursor:pointer" onclick="showScreen('progreso')">
+        <div class="card-title" style="margin-bottom:8px" id="miniChartLabel">—</div>
+        <div style="position:relative;height:100px;width:100%"><canvas id="miniChart"></canvas></div>
+      </div>
+      <div class="section-label">Últimas sesiones</div>
+      <div id="homeRecentSessions"></div>
+    </div>
+
+    <!-- SESIÓN -->
+    <!-- LISTA DE EJERCICIOS -->
+    <div class="screen" id="screen-sesion-lista">
+      <div id="sesionListaContent"></div>
+    </div>
+
+    <!-- EJERCICIO ACTIVO serie por serie -->
+    <div class="screen" id="screen-sesion-ejercicio">
+      <div id="sesionEjercicioContent"></div>
+    </div>
+
+    <!-- ENTRE EJERCICIOS -->
+    <div class="screen" id="screen-sesion-siguiente">
+      <div id="sesionSiguienteContent"></div>
+    </div>
+
+    <!-- FIN DE SESIÓN -->
+    <div class="screen" id="screen-sesion-fin">
+      <div id="sesionFinContent"></div>
+    </div>
+
+    <!-- RUTINAS -->
+    <div class="screen" id="screen-rutinas">
+      <div class="section-label">Rutinas activas</div>
+      <div id="rutinasList"></div>
+      <button class="btn btn-full" onclick="showScreen('nueva-rutina')">+ Nueva rutina</button>
+      <div class="section-label" style="margin-top:16px">Archivadas</div>
+      <div id="rutinaArchivadasList"></div>
+    </div>
+
+    <!-- NUEVA RUTINA -->
+    <div class="screen" id="screen-nueva-rutina">
+      <div class="form-group"><label>Nombre de la rutina</label><input type="text" id="nrNombre" placeholder="Ej: Rutina Mayo"></div>
+      <div class="inline-row" style="margin-bottom:12px">
+        <div class="form-group"><label>Duración (semanas)</label><input type="number" id="nrSemanas" placeholder="4" min="1" max="52"></div>
+        <div class="form-group"><label>Días por semana</label><input type="number" id="nrDias" placeholder="3" min="1" max="7"></div>
+      </div>
+      <div class="section-label">Días y grupos musculares</div>
+      <div id="nrDaysList"></div>
+      <button class="btn btn-full" onclick="addNrDay()">+ Agregar día</button>
+      <button class="btn btn-primary btn-full" style="margin-top:10px" onclick="saveNuevaRutina()">Guardar rutina</button>
+    </div>
+
+    <!-- DETALLE RUTINA -->
+    <div class="screen" id="screen-rutina-detalle">
+      <div id="rutinaDetalleContent"></div>
+    </div>
+
+    <!-- PROGRESO -->
+    <div class="screen" id="screen-progreso">
+      <div class="section-label">Ejercicio</div>
+      <div class="chip-row" id="progresoChips"></div>
+      <div class="progress-wrap"><div style="position:relative;height:180px;width:100%"><canvas id="mainChart"></canvas></div></div>
+      <div class="section-label">Última sesión vs anterior</div>
+      <div class="card" id="compareCard"></div>
+      <div class="section-label">Historial</div>
+      <div id="progresoHistorial"></div>
+    </div>
+
+    <!-- DIETA -->
+    <div class="screen" id="screen-dieta">
+      <div class="section-label">Calorías estimadas</div>
+      <div class="metric-grid">
+        <div class="metric-card"><div class="metric-label">TDEE</div><div class="metric-val" id="tdeeVal">—</div></div>
+        <div class="metric-card"><div class="metric-label">Proteína</div><div class="metric-val" id="protVal">—</div></div>
+      </div>
+      <div class="section-label">Tus datos</div>
+      <div class="card">
+        <div class="inline-row" style="margin-bottom:12px">
+          <div class="form-group"><label>Peso (kg)</label><input type="number" id="uPeso" placeholder="78"></div>
+          <div class="form-group"><label>Altura (cm)</label><input type="number" id="uAltura" placeholder="178"></div>
+        </div>
+        <div class="inline-row" style="margin-bottom:12px">
+          <div class="form-group"><label>Edad</label><input type="number" id="uEdad" placeholder="28"></div>
+          <div class="form-group"><label>Sexo</label>
+            <select id="uSexo"><option value="m">Masculino</option><option value="f">Femenino</option></select>
+          </div>
+        </div>
+        <div class="form-group"><label>Nivel de actividad</label>
+          <select id="uActividad">
+            <option value="1.2">Sedentario</option>
+            <option value="1.375">Ligero (1–2x/sem)</option>
+            <option value="1.55" selected>Moderado (3–4x/sem)</option>
+            <option value="1.725">Activo (5–6x/sem)</option>
+            <option value="1.9">Muy activo (2x/día)</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="calcTDEE()">Calcular</button>
+      </div>
+      <div class="section-label">Mi dieta</div>
+      <div class="card">
+        <div class="form-group"><label>Desayuno</label><textarea id="dDesayuno" placeholder="Ej: 2 huevos, avena, café..."></textarea></div>
+        <div class="form-group"><label>Almuerzo</label><textarea id="dAlmuerzo" placeholder="Ej: Arroz, pechuga, ensalada..."></textarea></div>
+        <div class="form-group"><label>Merienda</label><textarea id="dMerienda" placeholder="Ej: Yogur griego, banana..."></textarea></div>
+        <div class="form-group"><label>Cena</label><textarea id="dCena" placeholder="Ej: Salmón, batata, vegetales..."></textarea></div>
+        <button class="btn btn-primary btn-full" onclick="saveDieta()">Guardar dieta</button>
+      </div>
+    </div>
+
+    <!-- PERFIL -->
+    <div class="screen" id="screen-perfil">
+      <div class="section-label">Mi perfil</div>
+      <div class="card" id="perfilCard"></div>
+
+      <div class="section-label">Editar perfil</div>
+      <div class="card">
+        <div class="form-group">
+          <label>Nombre</label>
+          <input type="text" id="pNombre" placeholder="Tu nombre">
+        </div>
+        <div class="form-group">
+          <label>Fecha de nacimiento</label>
+          <input type="date" id="pFechaNac">
+        </div>
+        <div class="inline-row" style="margin-bottom:12px">
+          <div class="form-group">
+            <label>Peso (kg)</label>
+            <input type="number" id="pPeso" placeholder="78" inputmode="decimal">
+          </div>
+          <div class="form-group">
+            <label>Altura (cm)</label>
+            <input type="number" id="pAltura" placeholder="178" inputmode="decimal">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Sexo</label>
+          <select id="pSexo">
+            <option value="m">Masculino</option>
+            <option value="f">Femenino</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="savePerfilEdits()">Guardar perfil</button>
+      </div>
+
+      <div class="section-label">Objetivo</div>
+      <div class="card">
+        <div class="chip-row" id="objetivoChips">
+          <button class="chip" onclick="setObjetivo(this,'Hipertrofia')">Hipertrofia</button>
+          <button class="chip" onclick="setObjetivo(this,'Fuerza')">Fuerza</button>
+          <button class="chip" onclick="setObjetivo(this,'Perder grasa')">Perder grasa</button>
+          <button class="chip" onclick="setObjetivo(this,'Definición')">Definición</button>
+        </div>
+      </div>
+      <div class="section-label">Respaldo de datos</div>
+      <div class="card" id="backupCard">
+        <!-- se renderiza con renderBackupCard() -->
+      </div>
+
+      <div class="section-label">Opciones avanzadas</div>
+      <button class="btn btn-full btn-danger" onclick="confirmReset()">Borrar todos los datos</button>
+    </div>
+  </div><!-- /screens -->
+
+  <!-- MODAL BACKUP ONBOARDING -->
+  <div id="backupModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:200;align-items:flex-end;justify-content:center">
+    <div style="background:var(--bg);border-radius:24px 24px 0 0;padding:28px 24px 40px;max-width:430px;width:100%;margin:0 auto">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:44px;margin-bottom:12px">☁️</div>
+        <div style="font-size:20px;font-weight:700;margin-bottom:8px">Guardá tu progreso</div>
+        <div style="font-size:14px;color:var(--text2);line-height:1.5">
+          GymTracker guarda todos tus datos <strong>en este dispositivo</strong> — tus rutinas, pesos e historial quedan solo acá.<br><br>
+          Para que no pierdas nada si cambiás de celular o reinstalás la app, podés vincular tu <strong>Google Drive o iCloud</strong>. Así se guarda automáticamente un respaldo cada vez que entrenás.<br><br>
+          <span style="color:var(--text3);font-size:12px">Tu información es tuya. No accedemos a ningún otro archivo de tu Drive o iCloud.</span>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" style="padding:14px;font-size:15px;margin-bottom:10px" onclick="startGoogleDriveBackup()">
+        Vincular Google Drive
+      </button>
+      <button class="btn btn-full" style="padding:14px;font-size:15px;margin-bottom:10px" onclick="showICloudInstructions()">
+        Guardar en iCloud / Archivos
+      </button>
+      <button class="btn btn-full" style="color:var(--text2);border-color:transparent;font-size:13px" onclick="dismissBackupModal(true)">
+        Ahora no, recordármelo luego
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL iCLOUD INSTRUCCIONES -->
+  <div id="icloudModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:200;align-items:flex-end;justify-content:center">
+    <div style="background:var(--bg);border-radius:24px 24px 0 0;padding:28px 24px 40px;max-width:430px;width:100%;margin:0 auto">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:44px;margin-bottom:12px">📂</div>
+        <div style="font-size:20px;font-weight:700;margin-bottom:8px">Guardar en iCloud / Archivos</div>
+        <div style="font-size:14px;color:var(--text2);line-height:1.6;text-align:left">
+          <div style="margin-bottom:10px">En iOS, el backup se descarga como archivo. Para guardarlo en iCloud:</div>
+          <div style="background:var(--bg2);border-radius:var(--radius-sm);padding:12px;font-size:13px">
+            1. Tocá <strong>"Descargar backup"</strong> abajo<br>
+            2. En la ventana que aparece, tocá <strong>"Guardar en Archivos"</strong><br>
+            3. Elegí <strong>iCloud Drive → GymTracker</strong><br>
+            4. Listo — tu backup queda en la nube
+          </div>
+          <div style="margin-top:10px;font-size:12px;color:var(--text3)">Para restaurar, usá "Importar backup" en Perfil y seleccioná ese archivo desde iCloud.</div>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" style="padding:14px;font-size:15px;margin-bottom:10px" onclick="exportDataAndClose()">
+        Descargar backup ahora
+      </button>
+      <button class="btn btn-full" style="color:var(--text2);border-color:transparent;font-size:13px" onclick="closeICloudModal()">
+        Cerrar
+      </button>
+    </div>
+  </div>
+
+  <nav class="nav">
+    <button class="nav-btn active" id="nav-home" onclick="showScreen('home')"><span class="nav-icon">⊞</span>Inicio</button>
+    <button class="nav-btn" id="nav-rutinas" onclick="showScreen('rutinas')"><span class="nav-icon">◫</span>Rutinas</button>
+    <button class="nav-btn" id="nav-progreso" onclick="showScreen('progreso')"><span class="nav-icon">◈</span>Progreso</button>
+    <button class="nav-btn" id="nav-dieta" onclick="showScreen('dieta')"><span class="nav-icon">◉</span>Dieta</button>
+    <button class="nav-btn" id="nav-perfil" onclick="showScreen('perfil')"><span class="nav-icon">◎</span>Perfil</button>
+  </nav>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// ── STORAGE ────────────────────────────────────────────────────
+const KEYS = { rutinas:'gt_rutinas', historial:'gt_historial', sesiones:'gt_sesiones', perfil:'gt_perfil', dieta:'gt_dieta' };
+function lsGet(k){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){return null;} }
+function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); flashSave(); }catch(e){ showToast('Error al guardar'); } }
+function flashSave(){ const d=document.getElementById('saveDot'); d.classList.add('show'); clearTimeout(d._t); d._t=setTimeout(()=>d.classList.remove('show'),1500); }
+
+// ── DEFAULT DATA ───────────────────────────────────────────────
+const DEFAULT_RUTINAS = [{
+  id:'r1', nombre:'Rutina Abril', semanas:6, activa:true,
+  dias:[
+    { id:'d1', nombre:'Pecho, Hombros y Tríceps', ejercicios:[
+      {id:'e1',nombre:'Press Banca',series:[{reps:12,peso:70},{reps:10,peso:75},{reps:8,peso:80}]},
+      {id:'e2',nombre:'Press Militar',series:[{reps:12,peso:40},{reps:10,peso:45},{reps:8,peso:50}]},
+      {id:'e3',nombre:'Aperturas en Polea',series:[{reps:15,peso:15},{reps:12,peso:17},{reps:10,peso:20}]},
+      {id:'e4',nombre:'Tríceps Polea',series:[{reps:15,peso:25},{reps:12,peso:30},{reps:10,peso:32}]},
+    ]},
+    { id:'d2', nombre:'Espalda y Bíceps', ejercicios:[
+      {id:'e5',nombre:'Dominadas',series:[{reps:8,peso:0},{reps:6,peso:5},{reps:5,peso:10}]},
+      {id:'e6',nombre:'Remo con Barra',series:[{reps:12,peso:60},{reps:10,peso:65},{reps:8,peso:70}]},
+      {id:'e7',nombre:'Curl Bíceps',series:[{reps:12,peso:20},{reps:10,peso:22},{reps:8,peso:24}]},
+    ]},
+    { id:'d3', nombre:'Piernas', ejercicios:[
+      {id:'e8',nombre:'Sentadilla',series:[{reps:12,peso:80},{reps:10,peso:90},{reps:8,peso:100}]},
+      {id:'e9',nombre:'Prensa',series:[{reps:15,peso:120},{reps:12,peso:140},{reps:10,peso:160}]},
+      {id:'e10',nombre:'Extensiones Cuádriceps',series:[{reps:15,peso:40},{reps:12,peso:45},{reps:10,peso:50}]},
+    ]},
+  ]
+}];
+const DEFAULT_HISTORIAL = {}; // sin datos de ejemplo — se completa con sesiones reales
+
+let rutinas   = lsGet(KEYS.rutinas)   || DEFAULT_RUTINAS;
+let historial = lsGet(KEYS.historial) || DEFAULT_HISTORIAL;
+let sesiones  = lsGet(KEYS.sesiones)  || [];
+
+// Migración: limpiar entradas de historial que sean datos de ejemplo
+// (ejercicios en el historial que nunca aparecieron en una sesión real)
+(function limpiarHistorialDemo() {
+  const yaLimpiado = lsGet('gt_historial_limpio_v1');
+  if (yaLimpiado) return;
+  const exConSesionReal = new Set();
+  sesiones.forEach(s => s.ejercicios.forEach(e => exConSesionReal.add(e.nombre)));
+  Object.keys(historial).forEach(ex => {
+    if (!exConSesionReal.has(ex)) delete historial[ex];
+  });
+  lsSet(KEYS.historial, historial);
+  lsSet('gt_historial_limpio_v1', true);
+})();
+let perfil    = lsGet(KEYS.perfil)    || {nombre:'',peso:'',altura:'',edad:'',sexo:'m',actividad:'1.55',objetivo:'Hipertrofia',tdee:null,prot:null};
+let dieta     = lsGet(KEYS.dieta)     || {desayuno:'',almuerzo:'',merienda:'',cena:''};
+
+function save(){ lsSet(KEYS.rutinas,rutinas); lsSet(KEYS.historial,historial); lsSet(KEYS.sesiones,sesiones); lsSet(KEYS.perfil,perfil); }
+function getAllKnownExercises(){ const s=new Set(Object.keys(historial)); rutinas.forEach(r=>r.dias.forEach(d=>d.ejercicios.forEach(e=>s.add(e.nombre)))); return [...s].sort(); }
+
+// ── NAV ────────────────────────────────────────────────────────
+let screenHistory=[], selectedProgresoEx=null, currentSessionData=null, nrDayCount=0;
+let miniChartInst=null, mainChartInst=null, editingRutinaId=null;
+let deferredInstallPrompt=null;
+const topNavScreens=['home','rutinas','progreso','dieta','perfil'];
+const titles={home:'GymTracker',rutinas:'Mis rutinas','nueva-rutina':'Nueva rutina','rutina-detalle':'Detalle',sesion:'Sesión',progreso:'Progreso',dieta:'Dieta & Calorías',perfil:'Perfil'};
+
+function showScreen(name,opts){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+name).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  const nb=document.getElementById('nav-'+name); if(nb) nb.classList.add('active');
+  document.getElementById('topTitle').textContent=titles[name]||name;
+  document.getElementById('backBtn').style.display=topNavScreens.includes(name)?'none':'block';
+  const ta=document.getElementById('topAction'); ta.style.display='none'; ta.onclick=null; ta.textContent='';
+  if(!screenHistory.length||screenHistory[screenHistory.length-1]!==name) screenHistory.push(name);
+  if(name==='home') renderHome();
+  if(name==='rutinas') renderRutinas();
+  if(name==='progreso') renderProgreso(opts&&opts.ex);
+  if(name==='nueva-rutina') initNuevaRutina();
+  if(name==='rutina-detalle'&&opts) renderRutinaDetalle(opts.rid,opts.edit||false);
+  if(name==='dieta') loadDietaScreen();
+  if(name==='perfil') renderPerfil();
+}
+function goBack(){
+  // si estamos en alguna sub-pantalla de sesión, volver a la lista
+  const sesionScreens=['screen-sesion-ejercicio','screen-sesion-siguiente','screen-sesion-fin'];
+  const anyActive = sesionScreens.some(id=>{ const el=document.getElementById(id); return el&&el.classList.contains('active'); });
+  if(anyActive){ renderSesionLista(); return; }
+  if(document.getElementById('screen-sesion-lista')?.classList.contains('active')){ showScreen('home'); return; }
+  screenHistory.pop(); showScreen(screenHistory.pop()||'home');
+}
+function showToast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2200); }
+function formatDate(iso){ if(!iso) return ''; const d=new Date(iso); return d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'}); }
+
+// ── INSTALL BANNER ─────────────────────────────────────────────
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); deferredInstallPrompt=e;
+  const b=document.getElementById('installBanner');
+  b.innerHTML=`<div class="install-banner"><div class="install-banner-text"><strong>Instalá GymTracker</strong>Agregala a tu pantalla de inicio para usarla como app.</div><button class="btn btn-primary btn-sm" onclick="installPWA()">Instalar</button></div>`;
+});
+function installPWA(){ if(!deferredInstallPrompt) return; deferredInstallPrompt.prompt(); deferredInstallPrompt.userChoice.then(()=>{ deferredInstallPrompt=null; document.getElementById('installBanner').innerHTML=''; }); }
+window.addEventListener('appinstalled',()=>{ document.getElementById('installBanner').innerHTML=''; showToast('App instalada'); });
+
+// ── HOME ───────────────────────────────────────────────────────
+function renderHome(){
+  const r=rutinas.find(r=>r.activa);
+  document.getElementById('homeRutinaCard').innerHTML=r
+    ?`<div class="card" style="border-left:3px solid var(--purple)"><div class="row"><div class="flex-1"><div class="card-title">${r.nombre}</div><div class="card-sub">${r.semanas} semanas · ${r.dias.length} días</div></div><span class="badge">Activa</span></div></div>`
+    :`<div class="card"><div class="card-sub">Sin rutina activa. <span style="color:var(--purple);cursor:pointer" onclick="showScreen('rutinas')">Crear una</span></div></div>`;
+  const hd=document.getElementById('homeDays'); hd.innerHTML='';
+  if(r) r.dias.forEach(dia=>{
+    const last=sesiones.filter(s=>s.diaId===dia.id).slice(-1)[0];
+    const div=document.createElement('div'); div.className='card row'; div.style.cursor='pointer';
+    div.innerHTML=`<div class="flex-1"><div class="card-title">${dia.nombre}</div><div class="card-sub">${dia.ejercicios.length} ejercicios · ${last?'Última: '+formatDate(last.fecha):'Sin sesiones'}</div></div><button class="btn btn-primary btn-sm" onclick="startSession('${r.id}','${dia.id}')">Entrenar</button>`;
+    hd.appendChild(div);
+  });
+  const exConHist=Object.keys(historial)[0];
+  if(exConHist){ document.getElementById('miniChartLabel').textContent=exConHist+' — últimas sesiones'; setTimeout(()=>initMiniChart(exConHist),80); }
+  const hrs=document.getElementById('homeRecentSessions');
+  const rec=[...sesiones].reverse().slice(0,3);
+  hrs.innerHTML=rec.length?rec.map(s=>`<div class="card"><div class="row"><div class="flex-1"><div class="card-title">${s.diaNombre}</div><div class="card-sub">${s.rutinaNombre} · ${formatDate(s.fecha)}</div></div></div><div style="margin-top:5px;font-size:12px;color:var(--text2)">${s.ejercicios.map(e=>e.nombre).join(' · ')}</div></div>`).join('')
+    :`<div class="empty-state"><div class="emoji">💪</div><div>Todavía no hay sesiones.<br>¡Empezá a entrenar!</div></div>`;
+}
+
+// ── SESIÓN ─────────────────────────────────────────────────────
+// ── HELPERS DE HISTORIAL POR SERIE ───────────────────────────
+// Devuelve {reps, peso} de la última vez que se hizo la serie N de un ejercicio
+// serieIdx es base 0
+function getLastSerieData(exNombre, serieIdx) {
+  // buscar en sesiones de más reciente a más antigua
+  for (let i = sesiones.length - 1; i >= 0; i--) {
+    const sesion = sesiones[i];
+    const ex = sesion.ejercicios.find(e => e.nombre === exNombre);
+    if (ex && ex.series && ex.series[serieIdx] !== undefined) {
+      return ex.series[serieIdx]; // {reps, peso}
+    }
+  }
+  return null;
+}
+
+// ── SESIÓN PASO A PASO ────────────────────────────────────────
+// Estado de sesión activa
+let sesiónActiva = {
+  rid: null, did: null, rutinaNombre: '', diaNombre: '',
+  ejercicios: [],   // lista completa de ejercicios del día
+  exIdx: 0,         // índice del ejercicio actual
+  serieIdx: 0,      // índice de la serie actual
+  resultados: [],   // [{nombre, series:[{reps,peso}], nota}]
+  notaActual: '',
+};
+
+function startSession(rid, did) {
+  const r = rutinas.find(x => x.id === rid);
+  const dia = r.dias.find(d => d.id === did);
+  sesiónActiva = {
+    rid, did, rutinaNombre: r.nombre, diaNombre: dia.nombre,
+    ejercicios: dia.ejercicios,
+    exIdx: 0, serieIdx: 0,
+    resultados: dia.ejercicios.map(ex => ({ nombre: ex.nombre, series: [], nota: '' })),
+    notaActual: '',
+  };
+  currentSessionData = { rid, did, rutinaNombre: r.nombre, diaNombre: dia.nombre };
+  renderSesionLista();
+}
+
+// PANTALLA 1 — lista de ejercicios del día
+function renderSesionLista() {
+  const { ejercicios, exIdx, diaNombre } = sesiónActiva;
+  document.getElementById('topTitle').textContent = diaNombre;
+  const c = document.getElementById('sesionListaContent');
+  c.innerHTML = '';
+
+  // progreso global
+  const progDiv = document.createElement('div');
+  progDiv.style.cssText = 'margin-bottom:16px';
+  const completados = sesiónActiva.resultados.filter(r => r.series.length > 0).length;
+  progDiv.innerHTML = `<div style="font-size:12px;color:var(--text2);margin-bottom:6px">${completados} de ${ejercicios.length} ejercicios completados</div>
+    <div style="height:4px;background:var(--bg3);border-radius:4px;overflow:hidden">
+      <div style="height:100%;width:${Math.round(completados/ejercicios.length*100)}%;background:var(--purple);border-radius:4px;transition:width .4s"></div>
+    </div>`;
+  c.appendChild(progDiv);
+
+  ejercicios.forEach((ex, i) => {
+    const done = sesiónActiva.resultados[i].series.length > 0;
+    const active = i === exIdx;
+    const pending = !done;
+    const lastS1 = getLastSerieData(ex.nombre, 0);
+    const lastText = lastS1
+      ? `Última S1: ${lastS1.reps}r × ${lastS1.peso}kg`
+      : 'Primera vez';
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.cssText = `margin-bottom:8px;opacity:${done?'.5':'1'};${active?'border-color:var(--purple);border-width:1.5px':''}`;
+    // cualquier ejercicio pendiente es tappeable
+    if (pending) card.style.cursor = 'pointer';
+    card.innerHTML = `
+      <div class="row">
+        <div style="width:28px;height:28px;border-radius:50%;background:${done?'var(--green-light)':active?'var(--purple)':'var(--bg2)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;font-weight:700;color:${done?'var(--green)':active?'#fff':'var(--text2)'}">
+          ${done ? '✓' : i + 1}
+        </div>
+        <div class="flex-1" style="margin-left:10px">
+          <div class="card-title" style="font-size:14px">${ex.nombre}</div>
+          <div class="card-sub">${ex.series.length} series · ${lastText}</div>
+        </div>
+        ${done
+          ? '<span style="font-size:12px;color:var(--green)">Listo</span>'
+          : `<button class="btn ${active?'btn-primary':'btn-sm'} btn-sm" onclick="iniciarEjercicio(${i})">${active?'Empezar':'Ir'}</button>`
+        }
+      </div>`;
+    c.appendChild(card);
+  });
+
+  // si ya terminaron todos (todos tienen al menos una serie)
+  const todosCompletados = sesiónActiva.resultados.every(r => r.series.length > 0);
+  if (todosCompletados) {
+    const finBtn = document.createElement('button');
+    finBtn.className = 'btn btn-primary btn-full';
+    finBtn.style.marginTop = '8px';
+    finBtn.textContent = 'Finalizar entrenamiento';
+    finBtn.onclick = finishSession;
+    c.appendChild(finBtn);
+  }
+
+  showScreenSesion('lista');
+}
+
+// PANTALLA 2 — serie activa de un ejercicio
+function iniciarEjercicio(exIdx) {
+  sesiónActiva.exIdx = exIdx;
+  sesiónActiva.serieIdx = 0;
+  renderSesionEjercicio();
+}
+
+function renderSesionEjercicio() {
+  const { ejercicios, exIdx, serieIdx, resultados } = sesiónActiva;
+  const ex = ejercicios[exIdx];
+  const serie = ex.series[serieIdx];
+  const totalSeries = ex.series.length;
+  // buscar datos de esta serie específica en sesiones anteriores
+  const lastSerieData = getLastSerieData(ex.nombre, serieIdx);
+  // peso sugerido: último peso de esta serie, o el de la rutina
+  const pesoSugerido = lastSerieData ? lastSerieData.peso : (serie.peso > 0 ? serie.peso : '');
+
+  document.getElementById('topTitle').textContent = ex.nombre;
+  const c = document.getElementById('sesionEjercicioContent');
+
+  // texto de referencia de la última vez para esta serie
+  const lastSerieText = lastSerieData
+    ? `Última vez S${serieIdx+1}: <strong>${lastSerieData.reps} reps × ${lastSerieData.peso} kg</strong>`
+    : 'Primera vez que hacés esta serie';
+
+  c.innerHTML = `
+    <!-- progreso de series -->
+    <div style="display:flex;gap:6px;margin-bottom:20px;justify-content:center">
+      ${ex.series.map((_, i) => `<div style="width:${Math.floor(260/totalSeries)}px;max-width:60px;height:5px;border-radius:4px;background:${i < serieIdx ? 'var(--green)' : i === serieIdx ? 'var(--purple)' : 'var(--bg3)'}"></div>`).join('')}
+    </div>
+
+    <!-- número de serie -->
+    <div style="text-align:center;margin-bottom:6px">
+      <div style="font-size:13px;color:var(--text2);font-weight:500">SERIE ${serieIdx + 1} DE ${totalSeries}</div>
+    </div>
+
+    <!-- nombre ejercicio -->
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="font-size:22px;font-weight:700">${ex.nombre}</div>
+      <div style="font-size:13px;color:${lastSerieData?'var(--purple)':'var(--text3)'};margin-top:6px">${lastSerieText}</div>
+    </div>
+
+    <!-- reps realizadas (editable, objetivo como placeholder) -->
+    <div style="background:var(--bg2);border-radius:var(--radius);padding:20px;text-align:center;margin-bottom:20px">
+      <div style="font-size:13px;color:var(--text2);margin-bottom:8px">REPS <span style="font-weight:400;opacity:.6">(objetivo: ${serie.reps})</span></div>
+      <input id="repsInput" type="number" inputmode="numeric" value="${serie.reps}" min="1"
+        style="text-align:center;font-size:52px;font-weight:800;color:var(--purple);line-height:1;border:none;background:transparent;width:100%;padding:0;font-family:inherit;-moz-appearance:textfield">
+    </div>
+
+    <!-- peso usado -->
+    <div style="margin-bottom:16px">
+      <label style="display:block;text-align:center;font-size:13px;color:var(--text2);margin-bottom:8px">PESO USADO (kg)</label>
+      <input id="pesoInput" type="number" inputmode="decimal" placeholder="${pesoSugerido||'0'}" value="${pesoSugerido}"
+        style="text-align:center;font-size:32px;font-weight:700;padding:14px;border:1.5px solid var(--border2);border-radius:var(--radius);width:100%">
+    </div>
+
+    <!-- nota -->
+    <div style="margin-bottom:20px">
+      <span style="font-size:12px;color:var(--text2);cursor:pointer" onclick="toggleNotaInline(this)">+ Agregar nota</span>
+      <textarea id="notaInput" placeholder="Sensaciones, ajustes..." style="display:none;margin-top:6px;width:100%;border:0.5px solid var(--border2);border-radius:var(--radius-sm);padding:8px 10px;font-size:13px;font-family:inherit;color:var(--text);background:var(--bg);min-height:60px;resize:none">${sesiónActiva.notaActual}</textarea>
+    </div>
+
+    <!-- botón siguiente serie / siguiente ejercicio -->
+    <button class="btn btn-primary btn-full" style="padding:16px;font-size:16px;font-weight:700" onclick="completarSerie()">
+      ${serieIdx + 1 < totalSeries ? 'Siguiente serie →' : 'Terminar ejercicio ✓'}
+    </button>
+    <button class="btn btn-full" style="margin-top:8px;font-size:13px;color:var(--text2)" onclick="renderSesionLista()">← Volver a la lista</button>`;
+
+  showScreenSesion('ejercicio');
+  // foco en el input de peso
+  setTimeout(() => document.getElementById('pesoInput')?.focus(), 100);
+}
+
+function toggleNotaInline(el) {
+  const ta = el.nextElementSibling;
+  const open = ta.style.display === 'none';
+  ta.style.display = open ? 'block' : 'none';
+  el.textContent = open ? '– Cerrar nota' : '+ Agregar nota';
+}
+
+function completarSerie() {
+  const { ejercicios, exIdx, serieIdx, resultados } = sesiónActiva;
+  const ex = ejercicios[exIdx];
+  const peso = parseFloat(document.getElementById('pesoInput').value) || 0;
+  const reps = parseInt(document.getElementById('repsInput')?.value) || ex.series[serieIdx].reps;
+  const nota = document.getElementById('notaInput')?.value || '';
+  sesiónActiva.notaActual = nota;
+
+  // guardar resultado de esta serie
+  resultados[exIdx].series.push({ reps, peso });
+  resultados[exIdx].nota = nota;
+
+  const totalSeries = ex.series.length;
+
+  if (serieIdx + 1 < totalSeries) {
+    // siguiente serie del mismo ejercicio
+    sesiónActiva.serieIdx++;
+    renderSesionEjercicio();
+  } else {
+    // terminó todas las series — guardar índice del que terminó y mostrar transición
+    sesiónActiva.lastCompletedIdx = exIdx;
+    // buscar el próximo pendiente (en orden, saltando los ya hechos)
+    const nextIdx = ejercicios.findIndex((_, i) => i > exIdx && resultados[i].series.length === 0);
+    sesiónActiva.exIdx = nextIdx !== -1 ? nextIdx : ejercicios.length;
+    renderSesionSiguiente();
+  }
+}
+
+// PANTALLA 3 — transición entre ejercicios
+function renderSesionSiguiente() {
+  const { ejercicios, exIdx, resultados, lastCompletedIdx } = sesiónActiva;
+  const exAnterior = ejercicios[lastCompletedIdx];
+  const seriesHechas = resultados[lastCompletedIdx].series;
+  // hay más si quedan ejercicios pendientes
+  const pendientes = ejercicios.filter((_, i) => resultados[i].series.length === 0);
+  const hayMas = pendientes.length > 0;
+  const siguiente = hayMas ? ejercicios[exIdx] || pendientes[0] : null;
+
+  document.getElementById('topTitle').textContent = hayMas ? 'Siguiente ejercicio' : '¡Listo!';
+  const c = document.getElementById('sesionSiguienteContent');
+
+  c.innerHTML = `
+    <!-- resumen del ejercicio que terminó -->
+    <div style="text-align:center;margin-bottom:24px;padding:20px;background:var(--green-light);border-radius:var(--radius)">
+      <div style="font-size:28px;margin-bottom:6px">✓</div>
+      <div style="font-size:16px;font-weight:700;color:var(--green)">${exAnterior.nombre}</div>
+      <div style="font-size:13px;color:var(--green);margin-top:4px">
+        ${seriesHechas.map((s, i) => `S${i+1}: ${s.reps}r × ${s.peso}kg`).join(' &nbsp;·&nbsp; ')}
+      </div>
+    </div>
+
+    ${hayMas ? `
+      <!-- siguiente ejercicio -->
+      <div style="text-align:center;margin-bottom:8px;font-size:13px;color:var(--text2)">A CONTINUACIÓN</div>
+      <div class="card" style="text-align:center;padding:20px;margin-bottom:20px;border-color:var(--purple);border-width:1.5px">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px">EJERCICIO ${exIdx + 1} DE ${ejercicios.length}</div>
+        <div style="font-size:20px;font-weight:700">${siguiente.nombre}</div>
+        <div style="font-size:13px;color:var(--text2);margin-top:4px">${siguiente.series.length} series</div>
+        ${historial[siguiente.nombre] ? `<div style="font-size:12px;color:var(--purple);margin-top:4px">Última: ${historial[siguiente.nombre].slice(-1)[0]} kg</div>` : ''}
+      </div>
+      <button class="btn btn-primary btn-full" style="padding:16px;font-size:16px;font-weight:700" onclick="iniciarEjercicio(${exIdx})">
+        Empezar ${siguiente.nombre} →
+      </button>
+      <button class="btn btn-full" style="margin-top:8px;font-size:13px;color:var(--text2)" onclick="renderSesionLista()">Ver lista completa</button>
+    ` : `
+      <button class="btn btn-primary btn-full" style="padding:16px;font-size:16px;font-weight:700" onclick="finishSession()">
+        Finalizar entrenamiento ✓
+      </button>
+    `}`;
+
+  showScreenSesion('siguiente');
+}
+
+function showScreenSesion(sub) {
+  // ocultar TODAS las pantallas primero
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  // activar solo la sub-pantalla de sesión pedida
+  const target = document.getElementById('screen-sesion-' + sub);
+  if (target) target.classList.add('active');
+  // topbar
+  document.getElementById('backBtn').style.display = 'block';
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+}
+
+function finishSession() {
+  const { resultados, did, diaNombre, rutinaNombre } = sesiónActiva;
+  // filtrar ejercicios con al menos una serie cargada
+  const ejerciciosData = resultados.filter(e => e.series.length > 0);
+  ejerciciosData.forEach(e => {
+    const maxPeso = Math.max(...e.series.map(s => s.peso));
+    if (!historial[e.nombre]) historial[e.nombre] = [];
+    historial[e.nombre].push(maxPeso);
+  });
+  sesiones.push({ id: 's-' + Date.now(), fecha: new Date().toISOString(), diaId: did, diaNombre, rutinaNombre, ejercicios: ejerciciosData });
+  save();
+  autoBackup();
+  checkBackupReminder();
+  // pantalla de fin
+  const c = document.getElementById('sesionFinContent');
+  c.innerHTML = `
+    <div style="text-align:center;padding:40px 20px">
+      <div style="font-size:56px;margin-bottom:16px">💪</div>
+      <div style="font-size:24px;font-weight:800;margin-bottom:8px">¡Entrenamiento listo!</div>
+      <div style="font-size:14px;color:var(--text2);margin-bottom:24px">${ejerciciosData.length} ejercicios · ${ejerciciosData.reduce((a,e)=>a+e.series.length,0)} series totales</div>
+      <div style="margin-bottom:20px">
+        ${ejerciciosData.map(e=>`<div style="padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px"><span style="font-weight:600">${e.nombre}</span> &nbsp; ${e.series.map((s,i)=>`S${i+1}: ${s.reps}r×${s.peso}kg`).join(' · ')}</div>`).join('')}
+      </div>
+      <button class="btn btn-primary btn-full" style="padding:14px;font-size:15px" onclick="showScreen('home')">Volver al inicio</button>
+    </div>`;
+  showScreenSesion('fin');
+  document.getElementById('topTitle').textContent = 'Sesión completada';
+  currentSessionData = null;
+}
+
+// ── RUTINAS ────────────────────────────────────────────────────
+function renderRutinas(){
+  const list=document.getElementById('rutinasList'); list.innerHTML='';
+  rutinas.filter(r=>r.activa).forEach(r=>{ const div=document.createElement('div'); div.className='card';
+    div.innerHTML=`<div class="row"><div class="flex-1"><div class="card-title">${r.nombre}</div><div class="card-sub">${r.dias.length} días · ${r.semanas} semanas</div></div><span class="badge">Activa</span></div>
+    <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-sm" onclick="showScreen('rutina-detalle',{rid:'${r.id}',edit:false})">Ver detalle</button>
+      <button class="btn btn-sm" style="color:var(--purple);border-color:var(--purple-mid)" onclick="showScreen('rutina-detalle',{rid:'${r.id}',edit:true})">Modificar</button>
+      <button class="btn btn-sm btn-danger" onclick="archivarRutina('${r.id}')">Archivar</button>
+    </div>`; list.appendChild(div); });
+  const arch=document.getElementById('rutinaArchivadasList'); arch.innerHTML='';
+  const archivadas=rutinas.filter(r=>!r.activa);
+  if(!archivadas.length){ arch.innerHTML='<div class="card-sub" style="color:var(--text2)">Sin rutinas archivadas.</div>'; return; }
+  archivadas.forEach(r=>{ const div=document.createElement('div'); div.className='card'; div.style.opacity='.6';
+    div.innerHTML=`<div class="row"><div class="flex-1"><div class="card-title">${r.nombre}</div><div class="card-sub">${r.dias.length} días · ${r.semanas} sem.</div></div><span class="badge-gray badge">Archivada</span></div>
+    <div style="margin-top:8px"><button class="btn btn-xs" onclick="reactivarRutina('${r.id}')">Reactivar</button></div>`; arch.appendChild(div); });
+}
+function archivarRutina(rid){ const r=rutinas.find(x=>x.id===rid); r.activa=false; save(); renderRutinas(); showToast('Rutina archivada'); }
+function reactivarRutina(rid){ const r=rutinas.find(x=>x.id===rid); r.activa=true; save(); renderRutinas(); showToast('Rutina reactivada'); }
+
+// ── DETALLE / EDICIÓN ──────────────────────────────────────────
+function renderRutinaDetalle(rid,editing){
+  editingRutinaId=rid; const r=rutinas.find(x=>x.id===rid);
+  document.getElementById('topTitle').textContent=editing?'Modificar rutina':r.nombre;
+  const ta=document.getElementById('topAction'); ta.style.display='block';
+  if(editing){ ta.textContent='Guardar'; ta.onclick=()=>saveRutinaEdits(rid); }
+  else{ ta.textContent='Modificar'; ta.onclick=()=>renderRutinaDetalle(rid,true); }
+  const content=document.getElementById('rutinaDetalleContent'); content.innerHTML='';
+  if(editing) content.innerHTML=`<div class="edit-banner">Modo edición — presioná "Guardar" para confirmar cambios</div>`;
+  else content.innerHTML=`<div style="margin-bottom:12px"><span class="badge">${r.semanas} semanas</span> <span class="badge-gray badge" style="margin-left:4px">${r.dias.length} días</span></div>`;
+  r.dias.forEach(dia=>{
+    const dayDiv=document.createElement('div'); dayDiv.className='day-card'; dayDiv.dataset.dayId=dia.id;
+    if(editing){
+      dayDiv.innerHTML=`<div class="day-header open" style="cursor:default"><input class="day-name-input" type="text" value="${dia.nombre}"><button class="btn btn-xs btn-danger" onclick="removeDayFromRutina('${rid}','${dia.id}')">Eliminar día</button></div>
+        <div class="day-body open" id="editDayBody-${dia.id}"></div>
+        <div style="padding:8px 14px 12px;border-top:0.5px solid var(--border)"><button class="btn btn-xs" onclick="addExToEditDay('${dia.id}')">+ Agregar ejercicio</button></div>`;
+      content.appendChild(dayDiv);
+      const body=document.getElementById('editDayBody-'+dia.id);
+      dia.ejercicios.forEach(ex=>body.appendChild(buildEditExBlock(ex)));
+    } else {
+      const exHTML=dia.ejercicios.map(ex=>{ const sd=ex.series.map((s,i)=>`<span style="font-size:12px;color:var(--text2)">S${i+1}: ${s.reps}r×${s.peso}kg</span>`).join('&nbsp;'); return `<div style="padding:8px 0;border-bottom:0.5px solid var(--border)"><div style="font-size:13px;font-weight:600;margin-bottom:3px">${ex.nombre}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${sd}</div></div>`; }).join('');
+      dayDiv.innerHTML=`<div class="day-header" onclick="toggleDay(this)"><div class="day-header-title">${dia.nombre}</div><span style="font-size:12px;color:var(--text2)">${dia.ejercicios.length} ej.</span><span style="margin-left:4px">▾</span></div><div class="day-body">${exHTML}</div>`;
+      content.appendChild(dayDiv);
+    }
+  });
+  if(editing){ const btn=document.createElement('button'); btn.className='btn btn-full'; btn.style.marginTop='4px'; btn.textContent='+ Agregar día'; btn.onclick=()=>addDayToRutina(rid); content.appendChild(btn); }
+}
+function buildEditExBlock(ex){
+  const div=document.createElement('div'); div.className='ex-block editing'; div.dataset.exId=ex.id; div.style.cssText='margin:0 0 8px 0;overflow:visible';
+  div.innerHTML=`<div class="edit-ex-header"><div class="ac-wrap" style="flex:1"><input class="ac-input" type="text" value="${ex.nombre}" placeholder="Nombre del ejercicio" oninput="acFilter(this)" onfocus="acFilter(this)" onblur="acBlur(this)"><div class="ac-dropdown"></div></div><button class="btn btn-xs btn-danger" style="margin-left:8px;flex-shrink:0" onclick="this.closest('.ex-block').remove()">✕</button></div>
+    <div class="serie-headers" style="margin-top:6px"><div></div><div class="serie-col-label">Reps</div><div class="serie-col-label">Peso (kg)</div><div></div></div>
+    <div class="series-container">${ex.series.map((s,i)=>`<div class="serie-row"><div class="serie-num">${i+1}</div><input class="serie-input" type="number" inputmode="decimal" value="${s.reps}"><input class="serie-input" type="number" inputmode="decimal" value="${s.peso}" step="0.5"><button class="serie-del" onclick="removeSerie(this)">×</button></div>`).join('')}</div>
+    <div style="padding:0 12px 8px"><button class="btn btn-xs" onclick="addSerie(this)">+ Serie</button></div>`;
+  return div;
+}
+function addExToEditDay(dayId){ const body=document.getElementById('editDayBody-'+dayId); const b=buildEditExBlock({id:'new-'+Date.now(),nombre:'',series:[{reps:12,peso:0},{reps:10,peso:0},{reps:8,peso:0}]}); body.appendChild(b); b.querySelector('.ac-input').focus(); }
+function addDayToRutina(rid){ const r=rutinas.find(x=>x.id===rid); r.dias.push({id:'d-'+Date.now(),nombre:'Nuevo día',ejercicios:[]}); save(); renderRutinaDetalle(rid,true); }
+function removeDayFromRutina(rid,dayId){ const r=rutinas.find(x=>x.id===rid); if(r.dias.length<=1){showToast('La rutina necesita al menos 1 día');return;} r.dias=r.dias.filter(d=>d.id!==dayId); save(); renderRutinaDetalle(rid,true); }
+function saveRutinaEdits(rid){
+  const r=rutinas.find(x=>x.id===rid);
+  document.querySelectorAll('#rutinaDetalleContent .day-card').forEach(dayCard=>{
+    const dia=r.dias.find(d=>d.id===dayCard.dataset.dayId); if(!dia) return;
+    const ni=dayCard.querySelector('.day-name-input'); if(ni) dia.nombre=ni.value.trim()||dia.nombre;
+    const newExs=[]; dayCard.querySelectorAll('.ex-block').forEach(exBlock=>{ const nameEl=exBlock.querySelector('.ac-input'); if(!nameEl) return; const nombre=nameEl.value.trim(); if(!nombre) return; const series=[]; exBlock.querySelectorAll('.serie-row').forEach(row=>{const ins=row.querySelectorAll('.serie-input');series.push({reps:parseInt(ins[0].value)||8,peso:parseFloat(ins[1].value)||0});}); const orig=dia.ejercicios.find(e=>e.id===exBlock.dataset.exId); newExs.push({id:orig?orig.id:'ex-'+Date.now()+Math.random(),nombre,series}); });
+    dia.ejercicios=newExs;
+  });
+  save(); showToast('Rutina actualizada'); renderRutinaDetalle(rid,false);
+}
+function toggleDay(h){ const b=h.nextElementSibling; b.classList.toggle('open'); h.classList.toggle('open'); }
+
+// ── NUEVA RUTINA ───────────────────────────────────────────────
+function initNuevaRutina(){ nrDayCount=0; ['nrNombre','nrSemanas','nrDias'].forEach(id=>document.getElementById(id).value=''); document.getElementById('nrDaysList').innerHTML=''; addNrDay(); addNrDay(); }
+function addNrDay(){
+  nrDayCount++; const idx=nrDayCount; const c=document.getElementById('nrDaysList');
+  const div=document.createElement('div'); div.className='day-card';
+  div.innerHTML=`<div class="day-header open" style="cursor:default"><input class="day-name-input" type="text" placeholder="Ej: Pecho, Hombros y Tríceps"><button class="btn btn-xs btn-danger" onclick="this.closest('.day-card').remove()">Eliminar</button></div>
+    <div class="day-body open" id="nrExList-${idx}"></div>
+    <div style="padding:8px 14px 12px;border-top:0.5px solid var(--border)"><button class="btn btn-xs" onclick="addNrEx(${idx})">+ Agregar ejercicio</button></div>`;
+  c.appendChild(div); addNrEx(idx); addNrEx(idx); addNrEx(idx);
+}
+function addNrEx(idx){
+  const list=document.getElementById('nrExList-'+idx); const div=document.createElement('div'); div.className='ex-block'; div.style.cssText='margin:0 0 8px 0;overflow:visible';
+  div.innerHTML=`<div class="edit-ex-header"><div class="ac-wrap" style="flex:1"><input class="ac-input" type="text" placeholder="Ej: Press Banca" oninput="acFilter(this)" onfocus="acFilter(this)" onblur="acBlur(this)"><div class="ac-dropdown"></div></div><button class="btn btn-xs btn-danger" style="margin-left:8px;flex-shrink:0" onclick="this.closest('.ex-block').remove()">✕</button></div>
+    <div class="serie-headers" style="margin-top:6px"><div></div><div class="serie-col-label">Reps</div><div class="serie-col-label">Peso (kg)</div><div></div></div>
+    <div class="series-container"><div class="serie-row"><div class="serie-num">1</div><input class="serie-input" type="number" inputmode="decimal" placeholder="12"><input class="serie-input" type="number" inputmode="decimal" placeholder="0" step="0.5"><button class="serie-del" onclick="removeSerie(this)">×</button></div><div class="serie-row"><div class="serie-num">2</div><input class="serie-input" type="number" inputmode="decimal" placeholder="10"><input class="serie-input" type="number" inputmode="decimal" placeholder="0" step="0.5"><button class="serie-del" onclick="removeSerie(this)">×</button></div><div class="serie-row"><div class="serie-num">3</div><input class="serie-input" type="number" inputmode="decimal" placeholder="8"><input class="serie-input" type="number" inputmode="decimal" placeholder="0" step="0.5"><button class="serie-del" onclick="removeSerie(this)">×</button></div></div>
+    <div style="padding:0 12px 8px"><button class="btn btn-xs" onclick="addSerie(this)">+ Serie</button></div>`; list.appendChild(div);
+}
+function saveNuevaRutina(){
+  const nombre=document.getElementById('nrNombre').value.trim(); if(!nombre){showToast('Ingresá un nombre');return;}
+  const semanas=parseInt(document.getElementById('nrSemanas').value)||4; const dias=[];
+  document.querySelectorAll('#nrDaysList .day-card').forEach(dayCard=>{ const ni=dayCard.querySelector('.day-name-input'); const diaNombre=ni?ni.value.trim():'Día'; const ejercicios=[]; dayCard.querySelectorAll('.ex-block').forEach(exBlock=>{ const nameEl=exBlock.querySelector('.ac-input'); if(!nameEl) return; const exNombre=nameEl.value.trim(); if(!exNombre) return; const series=[]; exBlock.querySelectorAll('.serie-row').forEach(row=>{const ins=row.querySelectorAll('.serie-input');series.push({reps:parseInt(ins[0].value)||8,peso:parseFloat(ins[1].value)||0});}); ejercicios.push({id:'ex-'+Date.now()+Math.random(),nombre:exNombre,series}); }); if(diaNombre||ejercicios.length) dias.push({id:'d-'+Date.now()+Math.random(),nombre:diaNombre||'Día',ejercicios}); });
+  if(!dias.length){showToast('Agregá al menos un día');return;}
+  rutinas.push({id:'r-'+Date.now(),nombre,semanas,activa:true,dias}); save(); showToast('Rutina guardada'); showScreen('rutinas');
+}
+
+// ── AUTOCOMPLETE ───────────────────────────────────────────────
+function acFilter(input){ const val=input.value.toLowerCase().trim(),dd=input.nextElementSibling,all=getAllKnownExercises(),matches=val?all.filter(e=>e.toLowerCase().includes(val)):all; if(!matches.length){dd.classList.remove('open');return;} dd.innerHTML=matches.slice(0,8).map(e=>`<div class="ac-item" onmousedown="acSelect(event,'${e.replace(/'/g,"\\'")}')"><span>${e}</span>${historial[e]?'<span class="ac-item-hist">con historial</span>':''}</div>`).join(''); dd.classList.add('open'); }
+function acBlur(input){ setTimeout(()=>input.nextElementSibling.classList.remove('open'),180); }
+function acSelect(e,name){ e.preventDefault(); const dd=e.currentTarget.closest('.ac-dropdown'); dd.previousElementSibling.value=name; dd.classList.remove('open'); }
+
+// ── PROGRESO ───────────────────────────────────────────────────
+function renderProgreso(exOverride){
+  const exNames=Object.keys(historial); if(!exNames.length){document.getElementById('progresoChips').innerHTML='<div style="color:var(--text2);font-size:13px">Sin historial aún.</div>';return;}
+  if(!selectedProgresoEx||!historial[selectedProgresoEx]) selectedProgresoEx=exNames[0];
+  if(exOverride) selectedProgresoEx=exOverride;
+  const chips=document.getElementById('progresoChips'); chips.innerHTML='';
+  exNames.forEach(ex=>{ const btn=document.createElement('button'); btn.className='chip'+(ex===selectedProgresoEx?' active':''); btn.textContent=ex; btn.onclick=()=>{selectedProgresoEx=ex;renderProgreso();}; chips.appendChild(btn); });
+  const data=historial[selectedProgresoEx],prev=data.length>=2?data[data.length-2]:null,last=data[data.length-1],diff=prev!==null?last-prev:null;
+  document.getElementById('compareCard').innerHTML=prev!==null
+    ?`<div class="row" style="margin-bottom:8px"><div class="flex-1"><div class="card-sub">Penúltima sesión</div><div style="font-size:18px;font-weight:600">${prev} kg</div></div><div style="text-align:right"><div class="card-sub">Última sesión</div><div style="font-size:18px;font-weight:600;color:var(--purple)">${last} kg</div></div></div><div style="font-size:13px;color:${diff>=0?'var(--green)':'var(--red)'}">${diff>=0?'▲ +':'▼ '}${diff} kg ${diff>0?'— ¡Mejora!':diff===0?'— Sin cambio':''}</div>`
+    :`<div class="card-sub">Solo hay una sesión registrada.</div>`;
+  const ph=document.getElementById('progresoHistorial'); const sesEx=[...sesiones].filter(s=>s.ejercicios.some(e=>e.nombre===selectedProgresoEx)).reverse();
+  ph.innerHTML=sesEx.length?sesEx.map(s=>{ const ex=s.ejercicios.find(e=>e.nombre===selectedProgresoEx); const serStr=ex.series.map((sr,i)=>`S${i+1}: ${sr.reps}r×${sr.peso}kg`).join(' · '); return `<div class="card"><div class="row"><div class="flex-1"><div class="card-title" style="font-size:13px">${s.diaNombre}</div><div class="card-sub">${formatDate(s.fecha)} · ${s.rutinaNombre}</div></div></div><div style="margin-top:4px;font-size:12px;color:var(--text2)">${serStr}</div>${ex.nota?`<div style="margin-top:3px;font-size:11px;color:var(--text2);font-style:italic">"${ex.nota}"</div>`:''}</div>`; }).join(''):'<div style="color:var(--text2);font-size:13px">Sin sesiones registradas para este ejercicio.</div>';
+  setTimeout(()=>initMainChart(selectedProgresoEx),50);
+}
+
+// ── CHARTS ─────────────────────────────────────────────────────
+function isDark(){ return window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches; }
+function tc(){ return isDark()?'rgba(255,255,255,0.4)':'rgba(0,0,0,0.35)'; }
+function chartOpts(){ return {responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:tc(),font:{size:10}},grid:{display:false}},y:{ticks:{color:tc(),font:{size:10}},grid:{color:isDark()?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.07)'}}}}; }
+function initMiniChart(ex){ const canvas=document.getElementById('miniChart'); if(!canvas) return; if(miniChartInst){miniChartInst.destroy();miniChartInst=null;} const d=historial[ex]||[]; miniChartInst=new Chart(canvas,{type:'line',data:{labels:d.map((_,i)=>'S'+(i+1)),datasets:[{data:d,borderColor:'#534AB7',backgroundColor:'rgba(83,74,183,0.08)',tension:0.3,fill:true,pointRadius:3,pointBackgroundColor:'#534AB7'}]},options:chartOpts()}); }
+function initMainChart(ex){ const canvas=document.getElementById('mainChart'); if(!canvas) return; if(mainChartInst){mainChartInst.destroy();mainChartInst=null;} const d=historial[ex]||[]; mainChartInst=new Chart(canvas,{type:'line',data:{labels:d.map((_,i)=>'S'+(i+1)),datasets:[{data:d,borderColor:'#534AB7',backgroundColor:'rgba(83,74,183,0.1)',tension:0.3,fill:true,pointRadius:4,pointBackgroundColor:'#534AB7'}]},options:chartOpts()}); }
+
+// ── DIETA ──────────────────────────────────────────────────────
+function loadDietaScreen(){ ["desayuno","almuerzo","merienda","cena"].forEach(k=>{ const el=document.getElementById("d"+k[0].toUpperCase()+k.slice(1)); if(el) el.value=dieta[k]||""; }); if(perfil.peso) document.getElementById("uPeso").value=perfil.peso; if(perfil.altura) document.getElementById("uAltura").value=perfil.altura; const edadCalc=calcEdad(perfil.fechaNac)||perfil.edad; if(edadCalc) document.getElementById("uEdad").value=edadCalc; if(perfil.sexo) document.getElementById("uSexo").value=perfil.sexo; if(perfil.actividad) document.getElementById("uActividad").value=perfil.actividad; if(perfil.tdee) document.getElementById("tdeeVal").innerHTML=perfil.tdee+"<span class=\"metric-unit\">kcal</span>"; if(perfil.prot) document.getElementById("protVal").innerHTML=perfil.prot+"<span class=\"metric-unit\">g/día</span>"; }
+function saveDieta(){ ['desayuno','almuerzo','merienda','cena'].forEach(k=>{ const el=document.getElementById('d'+k[0].toUpperCase()+k.slice(1)); if(el) dieta[k]=el.value; }); lsSet(KEYS.dieta,dieta); showToast('Dieta guardada'); }
+function calcTDEE(){ const p=parseFloat(document.getElementById('uPeso').value)||78,h=parseFloat(document.getElementById('uAltura').value)||178,a=parseFloat(document.getElementById('uEdad').value)||28,sex=document.getElementById('uSexo').value,act=parseFloat(document.getElementById('uActividad').value); const bmr=sex==='m'?10*p+6.25*h-5*a+5:10*p+6.25*h-5*a-161; const tdee=Math.round(bmr*act),prot=Math.round(p*2); document.getElementById('tdeeVal').innerHTML=tdee+' <span class="metric-unit">kcal</span>'; document.getElementById('protVal').innerHTML=prot+' <span class="metric-unit">g/día</span>'; perfil.peso=p;perfil.altura=h;perfil.edad=a;perfil.sexo=sex;perfil.actividad=String(act);perfil.tdee=tdee;perfil.prot=prot; save(); showToast('TDEE: '+tdee+' kcal/día'); }
+
+// ── PERFIL ─────────────────────────────────────────────────────
+function calcEdad(fechaNac){
+  if(!fechaNac) return null;
+  const hoy=new Date(), nac=new Date(fechaNac);
+  let edad=hoy.getFullYear()-nac.getFullYear();
+  const m=hoy.getMonth()-nac.getMonth();
+  if(m<0||(m===0&&hoy.getDate()<nac.getDate())) edad--;
+  return edad;
+}
+function renderPerfil(){
+  const r=rutinas.find(r=>r.activa);
+  const edad=calcEdad(perfil.fechaNac);
+  const iniciales=perfil.nombre?perfil.nombre.trim().split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2):'GT';
+  const sublinea=[perfil.peso?perfil.peso+' kg':'',perfil.altura?perfil.altura+' cm':'',edad!==null?edad+' años':''].filter(Boolean).join(' · ');
+  document.getElementById('perfilCard').innerHTML=`
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
+      <div style="width:52px;height:52px;border-radius:50%;background:var(--purple-light);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--purple-dark);flex-shrink:0">${iniciales}</div>
+      <div>
+        <div style="font-size:16px;font-weight:600">${perfil.nombre||'Mi perfil'}</div>
+        <div class="card-sub">${sublinea||'Completá tu perfil'}</div>
+        ${perfil.fechaNac?`<div style="font-size:11px;color:var(--text3);margin-top:2px">${new Date(perfil.fechaNac).toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'})}</div>`:''}
+      </div>
+    </div>
+    <hr class="divider">
+    <div class="row" style="justify-content:space-between;padding:5px 0"><span style="font-size:13px;color:var(--text2)">Objetivo</span><span style="font-size:13px;font-weight:500">${perfil.objetivo||'—'}</span></div>
+    <div class="row" style="justify-content:space-between;padding:5px 0"><span style="font-size:13px;color:var(--text2)">Sexo</span><span style="font-size:13px">${perfil.sexo==='m'?'Masculino':perfil.sexo==='f'?'Femenino':'—'}</span></div>
+    <div class="row" style="justify-content:space-between;padding:5px 0"><span style="font-size:13px;color:var(--text2)">Rutina activa</span><span style="font-size:13px">${r?r.nombre:'—'}</span></div>
+    <div class="row" style="justify-content:space-between;padding:5px 0"><span style="font-size:13px;color:var(--text2)">Sesiones totales</span><span style="font-size:13px;font-weight:600">${sesiones.length}</span></div>`;
+  document.querySelectorAll('#objetivoChips .chip').forEach(chip=>chip.classList.toggle('active',chip.textContent===perfil.objetivo));
+  renderBackupCard();
+  // cargar valores en el formulario de edición
+  if(perfil.nombre) document.getElementById('pNombre').value=perfil.nombre;
+  if(perfil.fechaNac) document.getElementById('pFechaNac').value=perfil.fechaNac;
+  if(perfil.peso) document.getElementById('pPeso').value=perfil.peso;
+  if(perfil.altura) document.getElementById('pAltura').value=perfil.altura;
+  if(perfil.sexo) document.getElementById('pSexo').value=perfil.sexo;
+}
+function savePerfilEdits(){
+  const nombre=document.getElementById('pNombre').value.trim();
+  const fechaNac=document.getElementById('pFechaNac').value;
+  const peso=parseFloat(document.getElementById('pPeso').value)||null;
+  const altura=parseFloat(document.getElementById('pAltura').value)||null;
+  const sexo=document.getElementById('pSexo').value;
+  const edad=calcEdad(fechaNac);
+  if(!nombre){showToast('Ingresá tu nombre');return;}
+  perfil.nombre=nombre; perfil.fechaNac=fechaNac; perfil.peso=peso; perfil.altura=altura; perfil.sexo=sexo;
+  if(edad!==null) perfil.edad=edad;
+  save(); renderPerfil(); showToast('Perfil guardado');
+  // actualizar TDEE si hay datos suficientes
+  if(peso&&altura&&edad){ const act=parseFloat(perfil.actividad||'1.55'); const bmr=sexo==='m'?10*peso+6.25*altura-5*edad+5:10*peso+6.25*altura-5*edad-161; perfil.tdee=Math.round(bmr*act); perfil.prot=Math.round(peso*2); save(); }
+}
+function setObjetivo(btn,obj){ perfil.objetivo=obj; save(); renderPerfil(); }
+// ── BACKUP & RESTORE ──────────────────────────────────────────
+
+// Genera el JSON de backup
+function buildBackupData() {
+  return { rutinas, historial, sesiones, perfil, dieta, version: 1, fecha: new Date().toISOString() };
+}
+
+// Descarga el archivo JSON
+function exportData() {
+  const data = buildBackupData();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = 'gymtracker-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click(); URL.revokeObjectURL(url);
+  lsSet('gt_last_backup', new Date().toISOString());
+  showToast('Backup descargado');
+  renderBackupCard();
+}
+
+// Backup automático: se llama al finalizar sesión
+function autoBackup() {
+  const pref = lsGet('gt_backup_pref'); // 'google' | 'icloud' | 'dismissed' | null
+  if (!pref || pref === 'dismissed') return;
+  if (pref === 'icloud') {
+    // para iCloud simplemente descargamos — el usuario ya sabe dónde guardarlo
+    exportData();
+  }
+  // Google Drive: se maneja con la API de Google
+  if (pref === 'google') {
+    uploadToGoogleDrive();
+  }
+}
+
+// Importar desde archivo
+function importData(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.rutinas || !data.historial) { showToast('Archivo inválido'); return; }
+      if (!confirm('¿Restaurar backup? Se reemplazarán los datos actuales.')) return;
+      rutinas   = data.rutinas   || DEFAULT_RUTINAS;
+      historial = data.historial || DEFAULT_HISTORIAL;
+      sesiones  = data.sesiones  || [];
+      perfil    = data.perfil    || perfil;
+      dieta     = data.dieta     || dieta;
+      save(); lsSet(KEYS.dieta, dieta);
+      showToast('Datos restaurados correctamente');
+      showScreen('home');
+    } catch(err) { showToast('Error al leer el archivo'); }
+  };
+  reader.readAsText(file); input.value = '';
+}
+
+// Renderiza el card de backup en Perfil
+function renderBackupCard() {
+  const card = document.getElementById('backupCard'); if (!card) return;
+  const pref = lsGet('gt_backup_pref');
+  const lastBackup = lsGet('gt_last_backup');
+  const lastText = lastBackup ? 'Último backup: ' + new Date(lastBackup).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : 'Sin backup aún';
+
+  if (!pref || pref === 'dismissed') {
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <span style="font-size:28px">☁️</span>
+        <div>
+          <div style="font-size:14px;font-weight:600">Respaldo automático</div>
+          <div style="font-size:12px;color:var(--text2)">No configurado</div>
+        </div>
+      </div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:12px">Vinculá Google Drive o iCloud para que tus datos se respalden automáticamente después de cada entrenamiento.</div>
+      <button class="btn btn-primary btn-full" onclick="showBackupModal()">Configurar respaldo</button>`;
+  } else {
+    const icon = pref === 'google' ? '🔵' : '☁️';
+    const name = pref === 'google' ? 'Google Drive' : 'iCloud / Archivos';
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+        <span style="font-size:28px">${icon}</span>
+        <div class="flex-1">
+          <div style="font-size:14px;font-weight:600">${name} vinculado</div>
+          <div style="font-size:12px;color:var(--text2)">${lastText}</div>
+        </div>
+        <span style="font-size:18px;color:var(--green)">✓</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn btn-sm flex-1" onclick="exportData()">Respaldar ahora</button>
+        <label class="btn btn-sm flex-1" style="text-align:center;cursor:pointer">
+          Restaurar
+          <input type="file" accept=".json" style="display:none" onchange="importData(this)">
+        </label>
+        <button class="btn btn-sm" style="color:var(--text2)" onclick="changeBackupPref()">Cambiar</button>
+      </div>`;
+  }
+}
+
+// ── MODALES BACKUP ─────────────────────────────────────────────
+function showBackupModal() {
+  const m = document.getElementById('backupModal');
+  m.style.display = 'flex';
+}
+function dismissBackupModal(remind) {
+  document.getElementById('backupModal').style.display = 'none';
+  if (remind) lsSet('gt_backup_pref', 'dismissed');
+  renderBackupCard();
+}
+function changeBackupPref() {
+  localStorage.removeItem('gt_backup_pref');
+  showBackupModal();
+}
+function showICloudInstructions() {
+  document.getElementById('backupModal').style.display = 'none';
+  document.getElementById('icloudModal').style.display = 'flex';
+  lsSet('gt_backup_pref', 'icloud');
+  renderBackupCard();
+}
+function closeICloudModal() {
+  document.getElementById('icloudModal').style.display = 'none';
+  renderBackupCard();
+}
+function exportDataAndClose() {
+  exportData();
+  closeICloudModal();
+}
+
+// Google Drive via API
+function startGoogleDriveBackup() {
+  document.getElementById('backupModal').style.display = 'none';
+  lsSet('gt_backup_pref', 'google');
+  // Por ahora igual que iCloud: descarga el archivo
+  // En el futuro se puede integrar la Google Drive API real
+  showToast('Descargando backup para subir a Drive...');
+  setTimeout(() => exportData(), 500);
+  renderBackupCard();
+}
+
+function uploadToGoogleDrive() {
+  // Placeholder: cuando se integre la API real de Google Drive
+  // por ahora descarga el archivo
+  exportData();
+}
+
+// Mostrar modal de backup si el usuario nunca lo configuró
+// y ya tiene al menos 3 sesiones
+function checkBackupReminder() {
+  const pref = lsGet('gt_backup_pref');
+  if (!pref && sesiones.length >= 1) {
+    setTimeout(() => showBackupModal(), 1200);
+  }
+}
+function confirmReset(){ if(confirm('¿Borrar todos los datos? No se puede deshacer.')){ Object.values(KEYS).forEach(k=>localStorage.removeItem(k)); rutinas=DEFAULT_RUTINAS;historial=DEFAULT_HISTORIAL;sesiones=[];perfil={nombre:'',peso:'',altura:'',edad:'',sexo:'m',actividad:'1.55',objetivo:'Hipertrofia',tdee:null,prot:null};dieta={desayuno:'',almuerzo:'',merienda:'',cena:''}; save(); showToast('Datos borrados'); showScreen('home'); } }
+
+// ── SERVICE WORKER ─────────────────────────────────────────────
+if('serviceWorker' in navigator){ window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').then(()=>console.log('SW registrado')).catch(e=>console.log('SW error:',e)); }); }
+
+// ── ONBOARDING ────────────────────────────────────────────────
+const ONBOARDING_STEPS = [
+  {
+    emoji: '💪',
+    titulo: '¡Bienvenido a GymTracker!',
+    texto: 'Tu compañero de entrenamiento. Registrá tus rutinas, pesos y progreso en un solo lugar.',
+    campo: null,
+    boton: 'Empezar'
+  },
+  {
+    emoji: '👤',
+    titulo: '¿Cómo te llamás?',
+    texto: 'Tu nombre aparecerá en tu perfil.',
+    campo: 'nombre',
+    boton: 'Siguiente'
+  },
+  {
+    emoji: '🎂',
+    titulo: '¿Cuándo naciste?',
+    texto: 'Usamos tu edad para calcular mejor tus calorías y métricas.',
+    campo: 'fechaNac',
+    boton: 'Siguiente'
+  },
+  {
+    emoji: '📏',
+    titulo: '¿Cuánto medís y pesás?',
+    texto: 'Estos datos nos ayudan a estimar tu gasto calórico.',
+    campo: 'medidas',
+    boton: 'Siguiente'
+  },
+  {
+    emoji: '🎯',
+    titulo: '¿Cuál es tu objetivo?',
+    texto: 'Podés cambiarlo cuando quieras desde tu perfil.',
+    campo: 'objetivo',
+    boton: 'Siguiente'
+  },
+  {
+    emoji: '🏋️',
+    titulo: '¡Todo listo!',
+    texto: 'Ya podés crear tu primera rutina y empezar a entrenar.',
+    campo: null,
+    boton: 'Ir a la app'
+  }
+];
+
+let onbStep = 0;
+let onbData = { nombre:'', fechaNac:'', peso:'', altura:'', sexo:'m', objetivo:'Hipertrofia' };
+
+function checkOnboarding() {
+  const done = lsGet('gt_onboarding_done');
+  // Usuario existente: tiene sesiones, tiene nombre en perfil, o tiene rutinas propias
+  const esUsuarioExistente = sesiones.length > 0 || perfil.nombre || rutinas.length > 1 ||
+    (rutinas.length === 1 && rutinas[0].id !== 'r1');
+  if (!done && !esUsuarioExistente) {
+    onbStep = 0;
+    showOnboardingStep(0);
+    // ocultar nav durante onboarding
+    document.querySelector('.nav').style.display = 'none';
+    document.getElementById('backBtn').style.display = 'none';
+    document.getElementById('topTitle').textContent = 'GymTracker';
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-onboarding').classList.add('active');
+  } else {
+    // marcar como done para que no vuelva a chequearse
+    if (!done) lsSet('gt_onboarding_done', true);
+    renderHome();
+    checkBackupReminder();
+  }
+}
+
+function showOnboardingStep(idx) {
+  onbStep = idx;
+  const step = ONBOARDING_STEPS[idx];
+  const total = ONBOARDING_STEPS.length;
+  const c = document.getElementById('onboardingContent');
+
+  // dots de progreso
+  const dots = ONBOARDING_STEPS.map((_, i) =>
+    `<div style="width:${i===idx?'20px':'7px'};height:7px;border-radius:4px;background:${i===idx?'var(--purple)':i<idx?'var(--purple-mid)':'var(--bg3)'};transition:all .3s"></div>`
+  ).join('');
+
+  let campoHTML = '';
+  if (step.campo === 'nombre') {
+    campoHTML = `<input type="text" id="onbNombre" placeholder="Tu nombre" value="${onbData.nombre}"
+      style="text-align:center;font-size:22px;font-weight:600;border:none;border-bottom:2px solid var(--purple);border-radius:0;padding:8px 0;background:transparent;width:100%;margin-bottom:8px">`;
+  } else if (step.campo === 'fechaNac') {
+    campoHTML = `<input type="date" id="onbFecha" value="${onbData.fechaNac}"
+      style="font-size:16px;padding:12px;border:1.5px solid var(--border2);border-radius:var(--radius);width:100%;margin-bottom:8px;background:var(--bg);color:var(--text)">`;
+  } else if (step.campo === 'medidas') {
+    campoHTML = `
+      <div style="display:flex;gap:10px;margin-bottom:10px">
+        <div style="flex:1">
+          <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">Peso (kg)</label>
+          <input type="number" id="onbPeso" inputmode="decimal" placeholder="78" value="${onbData.peso}"
+            style="text-align:center;font-size:20px;font-weight:600;padding:10px;border:1.5px solid var(--border2);border-radius:var(--radius);width:100%;background:var(--bg);color:var(--text)">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">Altura (cm)</label>
+          <input type="number" id="onbAltura" inputmode="decimal" placeholder="178" value="${onbData.altura}"
+            style="text-align:center;font-size:20px;font-weight:600;padding:10px;border:1.5px solid var(--border2);border-radius:var(--radius);width:100%;background:var(--bg);color:var(--text)">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button onclick="onbSetSexo('m',this)" class="btn flex-1 ${onbData.sexo==='m'?'btn-primary':''}" id="onbSexoM">Masculino</button>
+        <button onclick="onbSetSexo('f',this)" class="btn flex-1 ${onbData.sexo==='f'?'btn-primary':''}" id="onbSexoF">Femenino</button>
+      </div>`;
+  } else if (step.campo === 'objetivo') {
+    const objs = ['Hipertrofia','Fuerza','Perder grasa','Definición'];
+    campoHTML = `<div style="display:flex;flex-direction:column;gap:8px">
+      ${objs.map(o => `<button onclick="onbSetObjetivo('${o}',this)" class="btn" style="padding:14px;font-size:15px;${onbData.objetivo===o?'background:var(--purple);color:#fff;border-color:var(--purple)':''}">${o}</button>`).join('')}
+    </div>`;
+  }
+
+  c.innerHTML = `
+    <div style="min-height:calc(100vh - 80px);display:flex;flex-direction:column;padding:20px 0">
+      <!-- dots -->
+      <div style="display:flex;gap:6px;justify-content:center;margin-bottom:32px">${dots}</div>
+
+      <!-- contenido -->
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 8px">
+        <div style="font-size:64px;margin-bottom:20px;line-height:1">${step.emoji}</div>
+        <div style="font-size:24px;font-weight:800;margin-bottom:10px;line-height:1.2">${step.titulo}</div>
+        <div style="font-size:15px;color:var(--text2);margin-bottom:28px;line-height:1.5">${step.texto}</div>
+        <div style="width:100%;max-width:320px">${campoHTML}</div>
+      </div>
+
+      <!-- botones -->
+      <div style="padding:0 0 20px">
+        <button class="btn btn-primary btn-full" style="padding:16px;font-size:16px;font-weight:700" onclick="onbNext()">
+          ${step.boton}
+        </button>
+        ${idx > 0 && idx < total-1 ? `<button class="btn btn-full" style="margin-top:8px;color:var(--text2);border-color:transparent;font-size:13px" onclick="onbSkip()">Saltar este paso</button>` : ''}
+      </div>
+    </div>`;
+}
+
+function onbSetSexo(sexo, btn) {
+  onbData.sexo = sexo;
+  document.getElementById('onbSexoM').classList.remove('btn-primary');
+  document.getElementById('onbSexoF').classList.remove('btn-primary');
+  btn.classList.add('btn-primary');
+}
+
+function onbSetObjetivo(obj, btn) {
+  onbData.objetivo = obj;
+  document.querySelectorAll('#onboardingContent .btn').forEach(b => {
+    b.style.background = ''; b.style.color = ''; b.style.borderColor = '';
+  });
+  btn.style.background = 'var(--purple)';
+  btn.style.color = '#fff';
+  btn.style.borderColor = 'var(--purple)';
+}
+
+function onbNext() {
+  const step = ONBOARDING_STEPS[onbStep];
+  // guardar dato del paso actual
+  if (step.campo === 'nombre') {
+    const v = document.getElementById('onbNombre')?.value.trim();
+    if (!v) { showToast('Ingresá tu nombre'); return; }
+    onbData.nombre = v;
+  } else if (step.campo === 'fechaNac') {
+    onbData.fechaNac = document.getElementById('onbFecha')?.value || '';
+  } else if (step.campo === 'medidas') {
+    onbData.peso = document.getElementById('onbPeso')?.value || '';
+    onbData.altura = document.getElementById('onbAltura')?.value || '';
+  }
+
+  if (onbStep < ONBOARDING_STEPS.length - 1) {
+    showOnboardingStep(onbStep + 1);
+  } else {
+    finishOnboarding();
+  }
+}
+
+function onbSkip() {
+  if (onbStep < ONBOARDING_STEPS.length - 1) {
+    showOnboardingStep(onbStep + 1);
+  }
+}
+
+function finishOnboarding() {
+  // guardar perfil con los datos recolectados
+  perfil.nombre    = onbData.nombre    || perfil.nombre;
+  perfil.fechaNac  = onbData.fechaNac  || perfil.fechaNac;
+  perfil.peso      = onbData.peso      || perfil.peso;
+  perfil.altura    = onbData.altura    || perfil.altura;
+  perfil.sexo      = onbData.sexo      || perfil.sexo;
+  perfil.objetivo  = onbData.objetivo  || perfil.objetivo;
+  const edad = calcEdad(perfil.fechaNac);
+  if (edad) perfil.edad = edad;
+  save();
+  lsSet('gt_onboarding_done', true);
+  // restaurar nav y mostrar home
+  document.querySelector('.nav').style.display = 'flex';
+  showScreen('home');
+}
+
+// INIT
+checkOnboarding();
+</script>
+</body>
+</html>
