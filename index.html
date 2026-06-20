@@ -185,6 +185,11 @@
       <div id="sesionEjercicioContent"></div>
     </div>
 
+    <!-- TIMER DE DESCANSO -->
+    <div class="screen" id="screen-sesion-timer">
+      <div id="sesionTimerContent"></div>
+    </div>
+
     <!-- ENTRE EJERCICIOS -->
     <div class="screen" id="screen-sesion-siguiente">
       <div id="sesionSiguienteContent"></div>
@@ -505,8 +510,10 @@ function showScreen(name,opts){
   if(name==='perfil') renderPerfil();
 }
 function goBack(){
+  // limpiar timer de descanso si estaba corriendo
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
   // si estamos en alguna sub-pantalla de sesión, volver a la lista
-  const sesionScreens=['screen-sesion-ejercicio','screen-sesion-siguiente','screen-sesion-fin'];
+  const sesionScreens=['screen-sesion-ejercicio','screen-sesion-timer','screen-sesion-siguiente','screen-sesion-fin'];
   const anyActive = sesionScreens.some(id=>{ const el=document.getElementById(id); return el&&el.classList.contains('active'); });
   if(anyActive){ renderSesionLista(); return; }
   if(document.getElementById('screen-sesion-lista')?.classList.contains('active')){ showScreen('home'); return; }
@@ -649,6 +656,7 @@ function renderSesionLista() {
 
 // PANTALLA 2 — serie activa de un ejercicio
 function iniciarEjercicio(exIdx) {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
   sesiónActiva.exIdx = exIdx;
   sesiónActiva.serieIdx = 0;
   renderSesionEjercicio();
@@ -687,6 +695,8 @@ function renderSesionEjercicio() {
     <div style="text-align:center;margin-bottom:24px">
       <div style="font-size:22px;font-weight:700">${ex.nombre}</div>
       <div style="font-size:13px;color:${lastSerieData?'var(--purple)':'var(--text3)'};margin-top:6px">${lastSerieText}</div>
+      ${ex.nota ? `<div style="font-size:12px;color:var(--text2);margin-top:4px">📝 ${ex.nota}</div>` : ''}
+      ${ex.descanso ? `<div style="font-size:12px;color:var(--text3);margin-top:4px">⏱ Descanso: ${ex.descanso}</div>` : ''}
     </div>
 
     <!-- reps realizadas (editable, objetivo como placeholder) -->
@@ -742,9 +752,9 @@ function completarSerie() {
   const totalSeries = ex.series.length;
 
   if (serieIdx + 1 < totalSeries) {
-    // siguiente serie del mismo ejercicio
+    // siguiente serie del mismo ejercicio — mostrar timer de descanso primero
     sesiónActiva.serieIdx++;
-    renderSesionEjercicio();
+    renderSesionTimer(ex);
   } else {
     // terminó todas las series — guardar índice del que terminó y mostrar transición
     sesiónActiva.lastCompletedIdx = exIdx;
@@ -753,6 +763,82 @@ function completarSerie() {
     sesiónActiva.exIdx = nextIdx !== -1 ? nextIdx : ejercicios.length;
     renderSesionSiguiente();
   }
+}
+
+// PANTALLA — timer de descanso entre series
+let timerInterval = null;
+function parseDescansoSegundos(descansoTexto) {
+  // intenta extraer segundos de textos como "2-3 min", "60-90 s", "90 s", "2 min"
+  if (!descansoTexto) return 120; // default
+  const txt = descansoTexto.toLowerCase();
+  const nums = txt.match(/\d+/g);
+  if (!nums || !nums.length) return 120;
+  // si hay rango, usar el valor más alto
+  const maxNum = Math.max(...nums.map(n => parseInt(n)));
+  if (txt.includes('min')) return maxNum * 60;
+  return maxNum; // segundos
+}
+
+function renderSesionTimer(ex) {
+  const segundosTotal = parseDescansoSegundos(ex.descanso);
+  let segundosRestantes = segundosTotal;
+  document.getElementById('topTitle').textContent = 'Descanso';
+  const c = document.getElementById('sesionTimerContent');
+
+  c.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 140px);text-align:center;padding:0 20px">
+      <div style="font-size:14px;color:var(--text2);margin-bottom:8px">DESCANSO ANTES DE</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:28px">${ex.nombre} · Serie ${sesiónActiva.serieIdx + 1}</div>
+
+      <div id="timerCircle" style="width:220px;height:220px;border-radius:50%;border:6px solid var(--bg3);display:flex;align-items:center;justify-content:center;margin-bottom:28px;position:relative">
+        <div id="timerDisplay" style="font-size:56px;font-weight:800;color:var(--purple)">${formatTimer(segundosRestantes)}</div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:8px">
+        <button class="btn btn-sm" onclick="ajustarTimer(-15)">-15s</button>
+        <button class="btn btn-sm" onclick="ajustarTimer(15)">+15s</button>
+      </div>
+
+      <button class="btn btn-primary btn-full" style="padding:16px;font-size:16px;font-weight:700;max-width:320px;margin-top:16px" onclick="saltarTimer()">
+        Saltar descanso →
+      </button>
+    </div>`;
+
+  showScreenSesion('timer');
+
+  if (timerInterval) clearInterval(timerInterval);
+  window._timerSegundosRestantes = segundosRestantes;
+
+  timerInterval = setInterval(() => {
+    window._timerSegundosRestantes--;
+    const disp = document.getElementById('timerDisplay');
+    if (disp) disp.textContent = formatTimer(window._timerSegundosRestantes);
+    if (window._timerSegundosRestantes <= 0) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      // vibración si el dispositivo lo soporta
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      saltarTimer();
+    }
+  }, 1000);
+}
+
+function formatTimer(segundos) {
+  const s = Math.max(0, segundos);
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+
+function ajustarTimer(delta) {
+  window._timerSegundosRestantes = Math.max(0, window._timerSegundosRestantes + delta);
+  const disp = document.getElementById('timerDisplay');
+  if (disp) disp.textContent = formatTimer(window._timerSegundosRestantes);
+}
+
+function saltarTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  renderSesionEjercicio();
 }
 
 // PANTALLA 3 — transición entre ejercicios
@@ -881,7 +967,7 @@ function renderRutinaDetalle(rid,editing){
       const body=document.getElementById('editDayBody-'+dia.id);
       dia.ejercicios.forEach(ex=>body.appendChild(buildEditExBlock(ex)));
     } else {
-      const exHTML=dia.ejercicios.map(ex=>{ const sd=ex.series.map((s,i)=>`<span style="font-size:12px;color:var(--text2)">S${i+1}: ${s.reps}r×${s.peso}kg</span>`).join('&nbsp;'); return `<div style="padding:8px 0;border-bottom:0.5px solid var(--border)"><div style="font-size:13px;font-weight:600;margin-bottom:3px">${ex.nombre}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${sd}</div></div>`; }).join('');
+      const exHTML=dia.ejercicios.map(ex=>{ const sd=ex.series.map((s,i)=>`<span style="font-size:12px;color:var(--text2)">S${i+1}: ${s.reps}r×${s.peso}kg</span>`).join('&nbsp;'); const extra=[ex.nota?`📝 ${ex.nota}`:'', ex.descanso?`⏱ ${ex.descanso}`:''].filter(Boolean).join(' &nbsp;·&nbsp; '); return `<div style="padding:8px 0;border-bottom:0.5px solid var(--border)"><div style="font-size:13px;font-weight:600;margin-bottom:3px">${ex.nombre}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${sd}</div>${extra?`<div style="font-size:11px;color:var(--text3);margin-top:3px">${extra}</div>`:''}</div>`; }).join('');
       dayDiv.innerHTML=`<div class="day-header" onclick="toggleDay(this)"><div class="day-header-title">${dia.nombre}</div><span style="font-size:12px;color:var(--text2)">${dia.ejercicios.length} ej.</span><span style="margin-left:4px">▾</span></div><div class="day-body">${exHTML}</div>`;
       content.appendChild(dayDiv);
     }
@@ -942,11 +1028,14 @@ const PROMPT_IA_RUTINA = `Quiero que conviertas la siguiente rutina de gimnasio 
 
 INSTRUCCIONES IMPORTANTES:
 - Devolvé SOLO el JSON, sin explicaciones antes ni después, sin bloques de código markdown.
-- Identificá los DÍAS de entrenamiento (ej: "Día 1 - Pecho y Tríceps", "Push", "Piernas", etc.)
+- Identificá los DÍAS de entrenamiento tal como están nombrados en la rutina (ej: "Push A", "Día 1 - Pecho y Tríceps", etc.) — no los renombres ni los asocies a días de la semana.
 - Para cada día, identificá los EJERCICIOS en el orden en que aparecen.
-- Para cada ejercicio, identificá las SERIES con sus repeticiones y peso. Si no hay peso especificado, poné 0. Si las repeticiones son un rango (ej "8-12"), usá el número más alto.
-- Si la rutina no especifica una duración en semanas, asumí 4.
+- Para cada ejercicio, identificá las SERIES con sus repeticiones y peso. Si no hay peso especificado, poné 0. Si las repeticiones son un rango (ej "8-12"), usá el número más alto del rango.
 - Si un ejercicio tiene "3x10" (3 series de 10 reps) sin pesos distintos por serie, repetí la misma serie 3 veces.
+- Si la rutina no especifica una duración en semanas, asumí 4.
+- Si el ejercicio tiene un tiempo de descanso indicado (ej: "2-3 min", "60-90 s"), incluilo en el campo "descanso" como texto corto. Si no hay descanso especificado, omití el campo.
+- Si el ejercicio tiene aclaraciones como nombres alternativos ("Dominadas o jalón al pecho"), indicaciones de "por lado", "por pierna", "por brazo", u otra nota relevante para ejecutarlo, agregala en el campo "nota". Si no hay nada relevante, omití el campo.
+- Ignorá secciones generales como descripción de la rutina, distribución semanal, consejos de progresión o volumen semanal — solo nos interesan los días, ejercicios y series.
 
 Respondé ÚNICAMENTE con un JSON con esta estructura exacta:
 
@@ -955,10 +1044,12 @@ Respondé ÚNICAMENTE con un JSON con esta estructura exacta:
   "semanas": 4,
   "dias": [
     {
-      "nombre": "Nombre del día (ej: Pecho y Tríceps)",
+      "nombre": "Nombre del día tal como aparece en la rutina",
       "ejercicios": [
         {
           "nombre": "Nombre del ejercicio",
+          "descanso": "2-3 min",
+          "nota": "Aclaración opcional, ej: por lado",
           "series": [
             {"reps": 12, "peso": 0},
             {"reps": 10, "peso": 0},
@@ -1021,7 +1112,7 @@ function procesarImportIA() {
       const series = Array.isArray(ex.series) && ex.series.length
         ? ex.series.map(s => ({ reps: parseInt(s.reps) || 8, peso: parseFloat(s.peso) || 0 }))
         : [{ reps: 12, peso: 0 }, { reps: 10, peso: 0 }, { reps: 8, peso: 0 }];
-      ejercicios.push({ id: 'ex-' + Date.now() + Math.random(), nombre: ex.nombre, series });
+      ejercicios.push({ id: 'ex-' + Date.now() + Math.random(), nombre: ex.nombre, series, descanso: ex.descanso || '', nota: ex.nota || '' });
     }
     if (ejercicios.length) dias.push({ id: 'd-' + Date.now() + Math.random(), nombre: dia.nombre, ejercicios });
   }
