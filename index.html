@@ -577,6 +577,8 @@ let sesiónActiva = {
   serieIdx: 0,      // índice de la serie actual
   resultados: [],   // [{nombre, series:[{reps,peso}], nota}]
   notaActual: '',
+  descansoSesion: null,        // override de descanso para TODA la sesión de hoy (segundos), null = no hay override
+  descansoPorEjercicio: {},    // { nombreEjercicio: segundos } — override puntual por ejercicio para hoy
 };
 
 function startSession(rid, did) {
@@ -588,6 +590,8 @@ function startSession(rid, did) {
     exIdx: 0, serieIdx: 0,
     resultados: dia.ejercicios.map(ex => ({ nombre: ex.nombre, series: [], nota: '' })),
     notaActual: '',
+    descansoSesion: null,
+    descansoPorEjercicio: {},
   };
   currentSessionData = { rid, did, rutinaNombre: r.nombre, diaNombre: dia.nombre };
   renderSesionLista();
@@ -738,6 +742,8 @@ function toggleNotaInline(el) {
 }
 
 function completarSerie() {
+  // destrabar el audio context con esta interacción del usuario (requerido por los navegadores)
+  try { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); } catch(e) {}
   const { ejercicios, exIdx, serieIdx, resultados } = sesiónActiva;
   const ex = ejercicios[exIdx];
   const peso = parseFloat(document.getElementById('pesoInput').value) || 0;
@@ -766,6 +772,29 @@ function completarSerie() {
 }
 
 // PANTALLA — timer de descanso entre series
+// Sonido de fin de descanso (Web Audio API, no requiere archivo externo)
+let audioCtx = null;
+function reproducirBeepTimer() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const ahora = audioCtx.currentTime;
+    // dos beeps cortos ascendentes
+    [0, 0.18].forEach((delay, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = i === 0 ? 880 : 1100;
+      gain.gain.setValueAtTime(0, ahora + delay);
+      gain.gain.linearRampToValueAtTime(0.35, ahora + delay + 0.02);
+      gain.gain.linearRampToValueAtTime(0, ahora + delay + 0.15);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(ahora + delay);
+      osc.stop(ahora + delay + 0.16);
+    });
+  } catch(e) { /* audio no disponible, seguimos sin sonido */ }
+}
+
 let timerInterval = null;
 function parseDescansoSegundos(descansoTexto) {
   // intenta extraer segundos de textos como "2-3 min", "60-90 s", "90 s", "2 min"
@@ -779,45 +808,101 @@ function parseDescansoSegundos(descansoTexto) {
   return maxNum; // segundos
 }
 
+// Jerarquía: override puntual del ejercicio para hoy > override de toda la sesión de hoy > descanso de la rutina > 120s default
+function getDescansoSegundos(ex) {
+  if (sesiónActiva.descansoPorEjercicio[ex.nombre] != null) return sesiónActiva.descansoPorEjercicio[ex.nombre];
+  if (sesiónActiva.descansoSesion != null) return sesiónActiva.descansoSesion;
+  return parseDescansoSegundos(ex.descanso);
+}
+
+// Cambia sutilmente el color de fondo según el tiempo restante:
+// >30s: neutro · <=30s: tinte amarillo creciente · =0: tinte rojo
+function actualizarColorTimer(segundosRestantes, segundosTotal) {
+  const bg = document.getElementById('timerScreenBg');
+  const circle = document.getElementById('timerCircle');
+  const display = document.getElementById('timerDisplay');
+  if (!bg) return;
+  if (segundosRestantes <= 0) {
+    bg.style.backgroundColor = 'rgba(200,60,60,0.10)';
+    if (circle) circle.style.borderColor = 'rgba(200,60,60,0.55)';
+    if (display) display.style.color = '#C83C3C';
+  } else if (segundosRestantes <= 30) {
+    // intensidad creciente a medida que se acerca a 0 (sutil, máx 12% de opacidad)
+    const intensidad = 0.04 + (1 - segundosRestantes / 30) * 0.08;
+    bg.style.backgroundColor = `rgba(210,160,40,${intensidad.toFixed(2)})`;
+    if (circle) circle.style.borderColor = 'rgba(210,160,40,0.5)';
+    if (display) display.style.color = '#B8860B';
+  } else {
+    bg.style.backgroundColor = 'transparent';
+    if (circle) circle.style.borderColor = 'var(--bg3)';
+    if (display) display.style.color = 'var(--purple)';
+  }
+}
+
 function renderSesionTimer(ex) {
-  const segundosTotal = parseDescansoSegundos(ex.descanso);
+  const segundosTotal = getDescansoSegundos(ex);
   let segundosRestantes = segundosTotal;
   document.getElementById('topTitle').textContent = 'Descanso';
   const c = document.getElementById('sesionTimerContent');
 
   c.innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 140px);text-align:center;padding:0 20px">
+    <div id="timerScreenBg" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 140px);text-align:center;padding:0 20px;transition:background-color 1s ease;border-radius:var(--radius)">
       <div style="font-size:14px;color:var(--text2);margin-bottom:8px">DESCANSO ANTES DE</div>
       <div style="font-size:18px;font-weight:700;margin-bottom:28px">${ex.nombre} · Serie ${sesiónActiva.serieIdx + 1}</div>
 
-      <div id="timerCircle" style="width:220px;height:220px;border-radius:50%;border:6px solid var(--bg3);display:flex;align-items:center;justify-content:center;margin-bottom:28px;position:relative">
-        <div id="timerDisplay" style="font-size:56px;font-weight:800;color:var(--purple)">${formatTimer(segundosRestantes)}</div>
+      <div id="timerCircle" style="width:220px;height:220px;border-radius:50%;border:6px solid var(--bg3);display:flex;align-items:center;justify-content:center;margin-bottom:20px;position:relative;transition:border-color 1s ease">
+        <div id="timerDisplay" style="font-size:56px;font-weight:800;color:var(--purple);transition:color 1s ease">${formatTimer(segundosRestantes)}</div>
       </div>
 
-      <div style="display:flex;gap:10px;margin-bottom:8px">
+      <div style="display:flex;gap:10px;margin-bottom:16px">
         <button class="btn btn-sm" onclick="ajustarTimer(-15)">-15s</button>
         <button class="btn btn-sm" onclick="ajustarTimer(15)">+15s</button>
       </div>
 
-      <button class="btn btn-primary btn-full" style="padding:16px;font-size:16px;font-weight:700;max-width:320px;margin-top:16px" onclick="saltarTimer()">
+      <span style="font-size:12px;color:var(--text2);cursor:pointer;text-decoration:underline;margin-bottom:20px" onclick="abrirConfigDescanso('${ex.nombre.replace(/'/g,"\\'")}')">Configurar tiempo de descanso</span>
+
+      <button class="btn btn-primary btn-full" style="padding:16px;font-size:16px;font-weight:700;max-width:320px;margin-top:8px" onclick="saltarTimer()">
         Saltar descanso →
       </button>
+    </div>
+
+    <!-- modal de configuración de descanso -->
+    <div id="descansoConfigModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:300;align-items:flex-end;justify-content:center">
+      <div style="background:var(--bg);border-radius:24px 24px 0 0;padding:24px 24px 36px;max-width:430px;width:100%;margin:0 auto">
+        <div style="font-size:17px;font-weight:700;margin-bottom:4px">Tiempo de descanso</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:20px">Ajustá cuánto querés descansar entre series.</div>
+
+        <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:24px">
+          <button class="btn" style="width:44px;height:44px;font-size:20px;border-radius:50%" onclick="cambiarValorConfigDescanso(-10)">−</button>
+          <div id="configDescansoValor" style="font-size:36px;font-weight:800;min-width:110px;text-align:center">--:--</div>
+          <button class="btn" style="width:44px;height:44px;font-size:20px;border-radius:50%" onclick="cambiarValorConfigDescanso(10)">+</button>
+        </div>
+
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Aplicar a:</div>
+        <button class="btn btn-full" style="margin-bottom:8px;text-align:left" onclick="guardarConfigDescanso('ejercicio')">Solo a <strong id="configExNombre"></strong> (hoy)</button>
+        <button class="btn btn-full" style="margin-bottom:8px;text-align:left" onclick="guardarConfigDescanso('sesion')">A toda la sesión de hoy</button>
+        <button class="btn btn-full" style="color:var(--text2);border-color:transparent;font-size:13px" onclick="cerrarConfigDescanso()">Cancelar</button>
+      </div>
     </div>`;
 
   showScreenSesion('timer');
 
   if (timerInterval) clearInterval(timerInterval);
   window._timerSegundosRestantes = segundosRestantes;
+  window._timerSegundosTotal = segundosTotal;
+  actualizarColorTimer(segundosRestantes, segundosTotal);
 
   timerInterval = setInterval(() => {
     window._timerSegundosRestantes--;
     const disp = document.getElementById('timerDisplay');
     if (disp) disp.textContent = formatTimer(window._timerSegundosRestantes);
+    actualizarColorTimer(window._timerSegundosRestantes, window._timerSegundosTotal);
     if (window._timerSegundosRestantes <= 0) {
       clearInterval(timerInterval);
       timerInterval = null;
       // vibración si el dispositivo lo soporta
       if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      reproducirBeepTimer();
       saltarTimer();
     }
   }, 1000);
@@ -834,6 +919,67 @@ function ajustarTimer(delta) {
   window._timerSegundosRestantes = Math.max(0, window._timerSegundosRestantes + delta);
   const disp = document.getElementById('timerDisplay');
   if (disp) disp.textContent = formatTimer(window._timerSegundosRestantes);
+  actualizarColorTimer(window._timerSegundosRestantes, window._timerSegundosTotal);
+}
+
+// ── CONFIGURACIÓN DE TIEMPO DE DESCANSO ─────────────────────────
+let _configDescansoExNombre = null;
+let _configDescansoValorSeg = 120;
+
+function abrirConfigDescanso(exNombre) {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } // pausar mientras configura
+  _configDescansoExNombre = exNombre;
+  _configDescansoValorSeg = window._timerSegundosRestantes > 0 ? window._timerSegundosRestantes : 120;
+  // redondear a algo razonable para empezar a editar
+  document.getElementById('configExNombre').textContent = exNombre;
+  document.getElementById('configDescansoValor').textContent = formatTimer(_configDescansoValorSeg);
+  document.getElementById('descansoConfigModal').style.display = 'flex';
+}
+
+function cambiarValorConfigDescanso(delta) {
+  _configDescansoValorSeg = Math.max(10, _configDescansoValorSeg + delta);
+  document.getElementById('configDescansoValor').textContent = formatTimer(_configDescansoValorSeg);
+}
+
+function guardarConfigDescanso(alcance) {
+  if (alcance === 'ejercicio') {
+    sesiónActiva.descansoPorEjercicio[_configDescansoExNombre] = _configDescansoValorSeg;
+    showToast('Descanso de ' + _configDescansoExNombre + ' ajustado a ' + formatTimer(_configDescansoValorSeg) + ' (solo hoy)');
+  } else if (alcance === 'sesion') {
+    sesiónActiva.descansoSesion = _configDescansoValorSeg;
+    showToast('Descanso de toda la sesión ajustado a ' + formatTimer(_configDescansoValorSeg));
+  }
+  document.getElementById('descansoConfigModal').style.display = 'none';
+  // reiniciar el timer actual con el nuevo valor
+  window._timerSegundosRestantes = _configDescansoValorSeg;
+  window._timerSegundosTotal = _configDescansoValorSeg;
+  const disp = document.getElementById('timerDisplay');
+  if (disp) disp.textContent = formatTimer(window._timerSegundosRestantes);
+  actualizarColorTimer(window._timerSegundosRestantes, window._timerSegundosTotal);
+  reanudarTimerTrasConfig();
+}
+
+function cerrarConfigDescanso() {
+  document.getElementById('descansoConfigModal').style.display = 'none';
+  reanudarTimerTrasConfig();
+}
+
+function reanudarTimerTrasConfig() {
+  if (timerInterval) clearInterval(timerInterval);
+  actualizarColorTimer(window._timerSegundosRestantes, window._timerSegundosTotal);
+  timerInterval = setInterval(() => {
+    window._timerSegundosRestantes--;
+    const disp = document.getElementById('timerDisplay');
+    if (disp) disp.textContent = formatTimer(window._timerSegundosRestantes);
+    actualizarColorTimer(window._timerSegundosRestantes, window._timerSegundosTotal);
+    if (window._timerSegundosRestantes <= 0) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      reproducirBeepTimer();
+      saltarTimer();
+    }
+  }, 1000);
 }
 
 function saltarTimer() {
@@ -979,7 +1125,10 @@ function buildEditExBlock(ex){
   div.innerHTML=`<div class="edit-ex-header"><div class="ac-wrap" style="flex:1"><input class="ac-input" type="text" value="${ex.nombre}" placeholder="Nombre del ejercicio" oninput="acFilter(this)" onfocus="acFilter(this)" onblur="acBlur(this)"><div class="ac-dropdown"></div></div><button class="btn btn-xs btn-danger" style="margin-left:8px;flex-shrink:0" onclick="this.closest('.ex-block').remove()">✕</button></div>
     <div class="serie-headers" style="margin-top:6px"><div></div><div class="serie-col-label">Reps</div><div class="serie-col-label">Peso (kg)</div><div></div></div>
     <div class="series-container">${ex.series.map((s,i)=>`<div class="serie-row"><div class="serie-num">${i+1}</div><input class="serie-input" type="number" inputmode="decimal" value="${s.reps}"><input class="serie-input" type="number" inputmode="decimal" value="${s.peso}" step="0.5"><button class="serie-del" onclick="removeSerie(this)">×</button></div>`).join('')}</div>
-    <div style="padding:0 12px 8px"><button class="btn btn-xs" onclick="addSerie(this)">+ Serie</button></div>`;
+    <div style="padding:0 12px 8px;display:flex;gap:8px;align-items:center">
+      <button class="btn btn-xs" onclick="addSerie(this)">+ Serie</button>
+      <input class="descanso-input" type="text" value="${ex.descanso||''}" placeholder="Descanso (ej: 90s)" style="flex:1;font-size:11px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius-sm);background:var(--bg);color:var(--text)">
+    </div>`;
   return div;
 }
 function addExToEditDay(dayId){ const body=document.getElementById('editDayBody-'+dayId); const b=buildEditExBlock({id:'new-'+Date.now(),nombre:'',series:[{reps:12,peso:0},{reps:10,peso:0},{reps:8,peso:0}]}); body.appendChild(b); b.querySelector('.ac-input').focus(); }
@@ -990,7 +1139,7 @@ function saveRutinaEdits(rid){
   document.querySelectorAll('#rutinaDetalleContent .day-card').forEach(dayCard=>{
     const dia=r.dias.find(d=>d.id===dayCard.dataset.dayId); if(!dia) return;
     const ni=dayCard.querySelector('.day-name-input'); if(ni) dia.nombre=ni.value.trim()||dia.nombre;
-    const newExs=[]; dayCard.querySelectorAll('.ex-block').forEach(exBlock=>{ const nameEl=exBlock.querySelector('.ac-input'); if(!nameEl) return; const nombre=nameEl.value.trim(); if(!nombre) return; const series=[]; exBlock.querySelectorAll('.serie-row').forEach(row=>{const ins=row.querySelectorAll('.serie-input');series.push({reps:parseInt(ins[0].value)||8,peso:parseFloat(ins[1].value)||0});}); const orig=dia.ejercicios.find(e=>e.id===exBlock.dataset.exId); newExs.push({id:orig?orig.id:'ex-'+Date.now()+Math.random(),nombre,series}); });
+    const newExs=[]; dayCard.querySelectorAll('.ex-block').forEach(exBlock=>{ const nameEl=exBlock.querySelector('.ac-input'); if(!nameEl) return; const nombre=nameEl.value.trim(); if(!nombre) return; const series=[]; exBlock.querySelectorAll('.serie-row').forEach(row=>{const ins=row.querySelectorAll('.serie-input');series.push({reps:parseInt(ins[0].value)||8,peso:parseFloat(ins[1].value)||0});}); const descansoEl=exBlock.querySelector('.descanso-input'); const descanso=descansoEl?descansoEl.value.trim():''; const orig=dia.ejercicios.find(e=>e.id===exBlock.dataset.exId); newExs.push({id:orig?orig.id:'ex-'+Date.now()+Math.random(),nombre,series,descanso,nota:orig?orig.nota||'':''}); });
     dia.ejercicios=newExs;
   });
   save(); showToast('Rutina actualizada'); renderRutinaDetalle(rid,false);
@@ -1024,10 +1173,11 @@ function saveNuevaRutina(){
 
 // ── IMPORTAR RUTINA CON IA ──────────────────────────────────────
 
-const PROMPT_IA_RUTINA = `Quiero que conviertas la siguiente rutina de gimnasio a un formato JSON específico. Te voy a pegar o adjuntar mi rutina (puede ser una foto, un PDF o texto).
+const PROMPT_IA_RUTINA = `Convertí la siguiente rutina de gimnasio (te la paso como foto, PDF o texto) a formato JSON.
 
-INSTRUCCIONES IMPORTANTES:
-- Devolvé SOLO el JSON, sin explicaciones antes ni después, sin bloques de código markdown.
+REGLA DE FORMATO MÁS IMPORTANTE: tu respuesta debe contener ÚNICAMENTE el JSON, presentado dentro de un bloque de código (con triple comilla invertida), para que tenga un botón de copiar y yo pueda copiarlo con un solo click. No agregues saludos, explicaciones, ni ningún texto fuera de ese bloque de código — ni antes ni después.
+
+INSTRUCCIONES PARA INTERPRETAR LA RUTINA:
 - Identificá los DÍAS de entrenamiento tal como están nombrados en la rutina (ej: "Push A", "Día 1 - Pecho y Tríceps", etc.) — no los renombres ni los asocies a días de la semana.
 - Para cada día, identificá los EJERCICIOS en el orden en que aparecen.
 - Para cada ejercicio, identificá las SERIES con sus repeticiones y peso. Si no hay peso especificado, poné 0. Si las repeticiones son un rango (ej "8-12"), usá el número más alto del rango.
@@ -1037,7 +1187,7 @@ INSTRUCCIONES IMPORTANTES:
 - Si el ejercicio tiene aclaraciones como nombres alternativos ("Dominadas o jalón al pecho"), indicaciones de "por lado", "por pierna", "por brazo", u otra nota relevante para ejecutarlo, agregala en el campo "nota". Si no hay nada relevante, omití el campo.
 - Ignorá secciones generales como descripción de la rutina, distribución semanal, consejos de progresión o volumen semanal — solo nos interesan los días, ejercicios y series.
 
-Respondé ÚNICAMENTE con un JSON con esta estructura exacta:
+ESTRUCTURA EXACTA QUE DEBE TENER EL JSON DENTRO DEL BLOQUE DE CÓDIGO:
 
 {
   "nombre": "Nombre de la rutina",
@@ -1061,6 +1211,8 @@ Respondé ÚNICAMENTE con un JSON con esta estructura exacta:
   ]
 }
 
+RECORDATORIO FINAL: la respuesta completa es un único bloque de código con el JSON adentro. Nada de texto suelto fuera de ese bloque.
+
 Acá está mi rutina:
 `;
 
@@ -1079,6 +1231,27 @@ function copiarPromptIA() {
   });
 }
 
+// Limpia y extrae el JSON aunque la IA haya agregado texto, saludos,
+// o bloques de código markdown antes o después del objeto.
+function extraerJsonDeTexto(raw) {
+  // 1. quitar bloques de código markdown si los hay
+  let cleaned = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+  // 2. intentar parsear directo — si funciona, no hace falta nada más
+  try { JSON.parse(cleaned); return cleaned; } catch(e) { /* sigue abajo */ }
+
+  // 3. buscar desde la primera "{" hasta la última "}" del texto
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start !== -1 && end !== -1 && end > start) {
+    const candidato = cleaned.slice(start, end + 1);
+    try { JSON.parse(candidato); return candidato; } catch(e) { /* sigue abajo */ }
+  }
+
+  // 4. si nada funcionó, devolver el texto limpio original para que el error sea claro
+  return cleaned;
+}
+
 function procesarImportIA() {
   const raw = document.getElementById('iaJsonInput').value.trim();
   const errorBox = document.getElementById('iaImportError');
@@ -1086,14 +1259,13 @@ function procesarImportIA() {
 
   if (!raw) { mostrarErrorIA('Pegá la respuesta de la IA antes de continuar.'); return; }
 
-  // limpiar posibles bloques de código markdown que la IA pudo agregar
-  let cleaned = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+  const cleaned = extraerJsonDeTexto(raw);
 
   let data;
   try {
     data = JSON.parse(cleaned);
   } catch (e) {
-    mostrarErrorIA('No pudimos leer el texto como JSON. Revisá que copiaste la respuesta completa de la IA, sin texto extra antes o después.');
+    mostrarErrorIA('No pudimos leer el texto como JSON. Revisá que copiaste la respuesta completa de la IA, sin que falte texto al principio o al final.');
     return;
   }
 
