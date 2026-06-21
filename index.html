@@ -160,6 +160,7 @@
 
     <div class="screen active" id="screen-home">
       <div id="installBanner"></div>
+      <div id="entrenamientoEnCursoBanner"></div>
       <div class="section-label">Rutina activa</div>
       <div id="homeRutinaCard"></div>
       <div class="section-label">Días de esta rutina</div>
@@ -431,7 +432,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 // ── STORAGE ────────────────────────────────────────────────────
-const KEYS = { rutinas:'gt_rutinas', historial:'gt_historial', sesiones:'gt_sesiones', perfil:'gt_perfil', dieta:'gt_dieta' };
+const KEYS = { rutinas:'gt_rutinas', historial:'gt_historial', sesiones:'gt_sesiones', perfil:'gt_perfil', dieta:'gt_dieta', sesionActiva:'gt_sesion_activa' };
 function lsGet(k){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){return null;} }
 function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); flashSave(); }catch(e){ showToast('Error al guardar'); } }
 function flashSave(){ const d=document.getElementById('saveDot'); d.classList.add('show'); clearTimeout(d._t); d._t=setTimeout(()=>d.classList.remove('show'),1500); }
@@ -516,7 +517,13 @@ function goBack(){
   const sesionScreens=['screen-sesion-ejercicio','screen-sesion-timer','screen-sesion-siguiente','screen-sesion-fin'];
   const anyActive = sesionScreens.some(id=>{ const el=document.getElementById(id); return el&&el.classList.contains('active'); });
   if(anyActive){ renderSesionLista(); return; }
-  if(document.getElementById('screen-sesion-lista')?.classList.contains('active')){ showScreen('home'); return; }
+  if(document.getElementById('screen-sesion-lista')?.classList.contains('active')){
+    // la sesión ya está persistida (guardarSesionActiva se llama en cada paso),
+    // así que es seguro salir — al volver, el banner "Entrenamiento en curso" la espera
+    showToast('Tu progreso quedó guardado');
+    showScreen('home');
+    return;
+  }
   screenHistory.pop(); showScreen(screenHistory.pop()||'home');
 }
 function showToast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2200); }
@@ -533,6 +540,7 @@ window.addEventListener('appinstalled',()=>{ document.getElementById('installBan
 
 // ── HOME ───────────────────────────────────────────────────────
 function renderHome(){
+  renderEntrenamientoEnCursoBanner();
   const r=rutinas.find(r=>r.activa);
   document.getElementById('homeRutinaCard').innerHTML=r
     ?`<div class="card" style="border-left:3px solid var(--purple)"><div class="row"><div class="flex-1"><div class="card-title">${r.nombre}</div><div class="card-sub">${r.semanas} semanas · ${r.dias.length} días</div></div><span class="badge">Activa</span></div></div>`
@@ -552,7 +560,49 @@ function renderHome(){
     :`<div class="empty-state"><div class="emoji">💪</div><div>Todavía no hay sesiones.<br>¡Empezá a entrenar!</div></div>`;
 }
 
-// ── SESIÓN ─────────────────────────────────────────────────────
+// Muestra un banner si hay una sesión de entrenamiento sin terminar.
+// Esto puede pasar si el usuario navegó a otra pantalla, cerró el navegador,
+// o salió de la app sin tocar "Finalizar entrenamiento".
+function renderEntrenamientoEnCursoBanner() {
+  const banner = document.getElementById('entrenamientoEnCursoBanner');
+  if (!banner) return;
+  if (!haySesionEnCurso()) { banner.innerHTML = ''; return; }
+
+  const completados = sesiónActiva.resultados.filter(r => r.series.length > 0).length;
+  const total = sesiónActiva.ejercicios.length;
+
+  banner.innerHTML = `
+    <div class="card" style="border-left:3px solid #D2A028;background:rgba(210,160,40,0.06);margin-bottom:10px">
+      <div class="row">
+        <div class="flex-1">
+          <div style="font-size:13px;font-weight:700;color:#B8860B;display:flex;align-items:center;gap:6px">
+            <span style="width:8px;height:8px;border-radius:50%;background:#D2A028;display:inline-block"></span>
+            Entrenamiento en curso
+          </div>
+          <div class="card-sub" style="margin-top:2px">${sesiónActiva.diaNombre} · ${completados}/${total} ejercicios</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="continuarSesionEnCurso()">Continuar</button>
+      </div>
+      <div style="text-align:right;margin-top:6px">
+        <span style="font-size:11px;color:var(--text3);cursor:pointer;text-decoration:underline" onclick="confirmarDescartarSesion()">Descartar este entrenamiento</span>
+      </div>
+    </div>`;
+}
+
+function confirmarDescartarSesion() {
+  if (confirm('¿Descartar este entrenamiento en curso? El progreso cargado hasta ahora no se va a guardar.')) {
+    limpiarSesionActiva();
+    showToast('Entrenamiento descartado');
+    renderHome();
+  }
+}
+
+function continuarSesionEnCurso() {
+  if (!haySesionEnCurso()) return;
+  renderSesionLista();
+}
+
+
 // ── HELPERS DE HISTORIAL POR SERIE ───────────────────────────
 // Devuelve {reps, peso} de la última vez que se hizo la serie N de un ejercicio
 // serieIdx es base 0
@@ -570,7 +620,7 @@ function getLastSerieData(exNombre, serieIdx) {
 
 // ── SESIÓN PASO A PASO ────────────────────────────────────────
 // Estado de sesión activa
-let sesiónActiva = {
+let sesiónActiva = lsGet(KEYS.sesionActiva) || {
   rid: null, did: null, rutinaNombre: '', diaNombre: '',
   ejercicios: [],   // lista completa de ejercicios del día
   exIdx: 0,         // índice del ejercicio actual
@@ -580,6 +630,22 @@ let sesiónActiva = {
   descansoSesion: null,        // override de descanso para TODA la sesión de hoy (segundos), null = no hay override
   descansoPorEjercicio: {},    // { nombreEjercicio: segundos } — override puntual por ejercicio para hoy
 };
+
+// Guarda la sesión activa en localStorage para que sobreviva a navegación,
+// cierre accidental del navegador, o cambio de pantalla dentro de la app.
+function guardarSesionActiva() {
+  if (sesiónActiva && sesiónActiva.rid) lsSet(KEYS.sesionActiva, sesiónActiva);
+}
+function limpiarSesionActiva() {
+  localStorage.removeItem(KEYS.sesionActiva);
+  sesiónActiva = { rid: null, did: null, rutinaNombre: '', diaNombre: '', ejercicios: [], exIdx: 0, serieIdx: 0, resultados: [], notaActual: '', descansoSesion: null, descansoPorEjercicio: {} };
+}
+// Hay sesión en curso simplemente si sesiónActiva tiene un rid asignado —
+// y eso es consistente con lo persistido en localStorage en todo momento,
+// porque limpiarSesionActiva() resetea ambas cosas juntas.
+function haySesionEnCurso() {
+  return !!(sesiónActiva && sesiónActiva.rid);
+}
 
 function startSession(rid, did) {
   const r = rutinas.find(x => x.id === rid);
@@ -594,6 +660,7 @@ function startSession(rid, did) {
     descansoPorEjercicio: {},
   };
   currentSessionData = { rid, did, rutinaNombre: r.nombre, diaNombre: dia.nombre };
+  guardarSesionActiva();
   renderSesionLista();
 }
 
@@ -661,8 +728,10 @@ function renderSesionLista() {
 // PANTALLA 2 — serie activa de un ejercicio
 function iniciarEjercicio(exIdx) {
   if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  destrabarAudio();
   sesiónActiva.exIdx = exIdx;
   sesiónActiva.serieIdx = 0;
+  guardarSesionActiva();
   renderSesionEjercicio();
 }
 
@@ -742,8 +811,8 @@ function toggleNotaInline(el) {
 }
 
 function completarSerie() {
-  // destrabar el audio context con esta interacción del usuario (requerido por los navegadores)
-  try { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); } catch(e) {}
+  // destrabar el audio context con esta interacción del usuario (requerido por los navegadores, especialmente iOS)
+  destrabarAudio();
   const { ejercicios, exIdx, serieIdx, resultados } = sesiónActiva;
   const ex = ejercicios[exIdx];
   const peso = parseFloat(document.getElementById('pesoInput').value) || 0;
@@ -754,6 +823,7 @@ function completarSerie() {
   // guardar resultado de esta serie
   resultados[exIdx].series.push({ reps, peso });
   resultados[exIdx].nota = nota;
+  guardarSesionActiva();
 
   const totalSeries = ex.series.length;
 
@@ -774,26 +844,55 @@ function completarSerie() {
 // PANTALLA — timer de descanso entre series
 // Sonido de fin de descanso (Web Audio API, no requiere archivo externo)
 let audioCtx = null;
-function reproducirBeepTimer() {
-  try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    const ahora = audioCtx.currentTime;
-    // dos beeps cortos ascendentes
-    [0, 0.18].forEach((delay, i) => {
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = i === 0 ? 880 : 1100;
-      gain.gain.setValueAtTime(0, ahora + delay);
-      gain.gain.linearRampToValueAtTime(0.35, ahora + delay + 0.02);
-      gain.gain.linearRampToValueAtTime(0, ahora + delay + 0.15);
-      osc.connect(gain); gain.connect(audioCtx.destination);
-      osc.start(ahora + delay);
-      osc.stop(ahora + delay + 0.16);
-    });
-  } catch(e) { /* audio no disponible, seguimos sin sonido */ }
+function getAudioCtx() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e) { return null; }
+  }
+  return audioCtx;
 }
+
+function reproducirBeepTimer() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const tocarBeeps = () => {
+    try {
+      const ahora = ctx.currentTime;
+      // dos beeps cortos ascendentes
+      [0, 0.18].forEach((delay, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = i === 0 ? 880 : 1100;
+        gain.gain.setValueAtTime(0, ahora + delay);
+        gain.gain.linearRampToValueAtTime(0.35, ahora + delay + 0.02);
+        gain.gain.linearRampToValueAtTime(0, ahora + delay + 0.15);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(ahora + delay);
+        osc.stop(ahora + delay + 0.16);
+      });
+    } catch(e) { /* seguimos sin sonido */ }
+  };
+  // en iOS el context puede volver a quedar "suspended" entre series —
+  // esperamos a que resume() termine antes de programar el sonido
+  if (ctx.state === 'suspended') {
+    ctx.resume().then(tocarBeeps).catch(() => {});
+  } else {
+    tocarBeeps();
+  }
+}
+
+// "Destraba" el audio context — hay que llamarlo en cada toque del usuario
+// relevante, porque iOS puede volver a suspenderlo entre interacciones.
+function destrabarAudio() {
+  const ctx = getAudioCtx();
+  if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+}
+
+// Red de seguridad para iOS: cualquier toque en la app intenta destrabar
+// el audio context, así no dependemos de acordarnos de hacerlo en cada pantalla nueva.
+document.addEventListener('touchstart', destrabarAudio, { passive: true });
+document.addEventListener('click', destrabarAudio);
 
 let timerInterval = null;
 function parseDescansoSegundos(descansoTexto) {
@@ -840,6 +939,7 @@ function actualizarColorTimer(segundosRestantes, segundosTotal) {
 }
 
 function renderSesionTimer(ex) {
+  destrabarAudio();
   const segundosTotal = getDescansoSegundos(ex);
   let segundosRestantes = segundosTotal;
   document.getElementById('topTitle').textContent = 'Descanso';
@@ -887,26 +987,47 @@ function renderSesionTimer(ex) {
 
   showScreenSesion('timer');
 
-  if (timerInterval) clearInterval(timerInterval);
-  window._timerSegundosRestantes = segundosRestantes;
+  // Basamos el timer en un timestamp absoluto de fin, no en un contador que resta de a uno.
+  // Así, aunque el navegador pause el setInterval en segundo plano (lo cual SIEMPRE pasa
+  // en iOS/Android cuando cambiás de app), al volver calculamos el tiempo real transcurrido
+  // comparando con Date.now() en lugar de haber "perdido" segundos.
+  window._timerFinTimestamp = Date.now() + segundosTotal * 1000;
   window._timerSegundosTotal = segundosTotal;
   actualizarColorTimer(segundosRestantes, segundosTotal);
 
-  timerInterval = setInterval(() => {
-    window._timerSegundosRestantes--;
-    const disp = document.getElementById('timerDisplay');
-    if (disp) disp.textContent = formatTimer(window._timerSegundosRestantes);
-    actualizarColorTimer(window._timerSegundosRestantes, window._timerSegundosTotal);
-    if (window._timerSegundosRestantes <= 0) {
-      clearInterval(timerInterval);
-      timerInterval = null;
-      // vibración si el dispositivo lo soporta
-      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-      reproducirBeepTimer();
-      saltarTimer();
-    }
-  }, 1000);
+  iniciarLoopTimer();
 }
+
+// Loop del timer basado en tiempo real transcurrido (Date.now), no en contador manual.
+function iniciarLoopTimer() {
+  if (timerInterval) clearInterval(timerInterval);
+  tickTimer(); // ejecutar una vez de inmediato para reflejar el estado actual sin esperar 1s
+  timerInterval = setInterval(tickTimer, 1000);
+}
+
+function tickTimer() {
+  const restantes = Math.ceil((window._timerFinTimestamp - Date.now()) / 1000);
+  window._timerSegundosRestantes = Math.max(0, restantes);
+  const disp = document.getElementById('timerDisplay');
+  if (disp) disp.textContent = formatTimer(window._timerSegundosRestantes);
+  actualizarColorTimer(window._timerSegundosRestantes, window._timerSegundosTotal);
+  if (restantes <= 0) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    reproducirBeepTimer();
+    saltarTimer();
+  }
+}
+
+// Cuando la app vuelve a primer plano, recalculamos inmediatamente
+// en lugar de esperar al próximo tick del setInterval.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && timerInterval && window._timerFinTimestamp) {
+    destrabarAudio();
+    tickTimer();
+  }
+});
 
 function formatTimer(segundos) {
   const s = Math.max(0, segundos);
@@ -916,10 +1037,9 @@ function formatTimer(segundos) {
 }
 
 function ajustarTimer(delta) {
-  window._timerSegundosRestantes = Math.max(0, window._timerSegundosRestantes + delta);
-  const disp = document.getElementById('timerDisplay');
-  if (disp) disp.textContent = formatTimer(window._timerSegundosRestantes);
-  actualizarColorTimer(window._timerSegundosRestantes, window._timerSegundosTotal);
+  // modificamos el timestamp de fin, no un contador — así el ajuste persiste correctamente
+  window._timerFinTimestamp += delta * 1000;
+  tickTimer();
 }
 
 // ── CONFIGURACIÓN DE TIEMPO DE DESCANSO ─────────────────────────
@@ -950,36 +1070,15 @@ function guardarConfigDescanso(alcance) {
     showToast('Descanso de toda la sesión ajustado a ' + formatTimer(_configDescansoValorSeg));
   }
   document.getElementById('descansoConfigModal').style.display = 'none';
-  // reiniciar el timer actual con el nuevo valor
-  window._timerSegundosRestantes = _configDescansoValorSeg;
+  // reiniciar el timer actual con el nuevo valor, basado en timestamp
+  window._timerFinTimestamp = Date.now() + _configDescansoValorSeg * 1000;
   window._timerSegundosTotal = _configDescansoValorSeg;
-  const disp = document.getElementById('timerDisplay');
-  if (disp) disp.textContent = formatTimer(window._timerSegundosRestantes);
-  actualizarColorTimer(window._timerSegundosRestantes, window._timerSegundosTotal);
-  reanudarTimerTrasConfig();
+  iniciarLoopTimer();
 }
 
 function cerrarConfigDescanso() {
   document.getElementById('descansoConfigModal').style.display = 'none';
-  reanudarTimerTrasConfig();
-}
-
-function reanudarTimerTrasConfig() {
-  if (timerInterval) clearInterval(timerInterval);
-  actualizarColorTimer(window._timerSegundosRestantes, window._timerSegundosTotal);
-  timerInterval = setInterval(() => {
-    window._timerSegundosRestantes--;
-    const disp = document.getElementById('timerDisplay');
-    if (disp) disp.textContent = formatTimer(window._timerSegundosRestantes);
-    actualizarColorTimer(window._timerSegundosRestantes, window._timerSegundosTotal);
-    if (window._timerSegundosRestantes <= 0) {
-      clearInterval(timerInterval);
-      timerInterval = null;
-      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-      reproducirBeepTimer();
-      saltarTimer();
-    }
-  }, 1000);
+  iniciarLoopTimer();
 }
 
 function saltarTimer() {
@@ -1054,6 +1153,7 @@ function finishSession() {
   });
   sesiones.push({ id: 's-' + Date.now(), fecha: new Date().toISOString(), diaId: did, diaNombre, rutinaNombre, ejercicios: ejerciciosData });
   save();
+  limpiarSesionActiva();
   autoBackup();
   checkBackupReminder();
   // pantalla de fin
