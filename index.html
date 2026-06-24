@@ -720,9 +720,29 @@ function renderSesionLista() {
     finBtn.textContent = 'Finalizar entrenamiento';
     finBtn.onclick = finishSession;
     c.appendChild(finBtn);
+  } else if (completados > 0) {
+    // hay progreso parcial — ofrecer terminar ahora y guardar solo lo hecho
+    const finParcialBtn = document.createElement('button');
+    finParcialBtn.className = 'btn btn-full';
+    finParcialBtn.style.marginTop = '12px';
+    finParcialBtn.style.color = 'var(--text2)';
+    finParcialBtn.textContent = 'Terminar ahora (guardar lo hecho)';
+    finParcialBtn.onclick = confirmarFinalizarAntes;
+    c.appendChild(finParcialBtn);
   }
 
   showScreenSesion('lista');
+}
+
+// Permite cortar el entrenamiento antes de completar todos los ejercicios.
+// Lo ya cargado (series con peso y reps) se guarda igual; lo pendiente se descarta.
+function confirmarFinalizarAntes() {
+  const completados = sesiónActiva.resultados.filter(r => r.series.length > 0).length;
+  const total = sesiónActiva.ejercicios.length;
+  const faltan = total - completados;
+  if (confirm(`Vas a terminar el entrenamiento con ${completados} de ${total} ejercicios completados. Los ${faltan} ejercicios restantes no se van a registrar. ¿Confirmás?`)) {
+    finishSession();
+  }
 }
 
 // PANTALLA 2 — serie activa de un ejercicio
@@ -948,7 +968,7 @@ function renderSesionTimer(ex) {
   c.innerHTML = `
     <div id="timerScreenBg" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 140px);text-align:center;padding:0 20px;transition:background-color 1s ease;border-radius:var(--radius)">
       <div style="font-size:14px;color:var(--text2);margin-bottom:8px">DESCANSO ANTES DE</div>
-      <div style="font-size:18px;font-weight:700;margin-bottom:28px">${ex.nombre} · Serie ${sesiónActiva.serieIdx + 1}</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:28px">${ex.nombre} · Serie ${sesiónActiva.serieIdx + 1} de ${ex.series.length}</div>
 
       <div id="timerCircle" style="width:220px;height:220px;border-radius:50%;border:6px solid var(--bg3);display:flex;align-items:center;justify-content:center;margin-bottom:20px;position:relative;transition:border-color 1s ease">
         <div id="timerDisplay" style="font-size:56px;font-weight:800;color:var(--purple);transition:color 1s ease">${formatTimer(segundosRestantes)}</div>
