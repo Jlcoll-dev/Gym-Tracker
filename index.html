@@ -270,13 +270,33 @@
 
     <!-- PROGRESO -->
     <div class="screen" id="screen-progreso">
-      <div class="section-label">Ejercicio</div>
-      <div class="chip-row" id="progresoChips"></div>
-      <div class="progress-wrap"><div style="position:relative;height:180px;width:100%"><canvas id="mainChart"></canvas></div></div>
-      <div class="section-label">Última sesión vs anterior</div>
-      <div class="card" id="compareCard"></div>
-      <div class="section-label">Historial</div>
-      <div id="progresoHistorial"></div>
+      <!-- Buscador de ejercicio -->
+      <div style="position:relative;margin-bottom:14px">
+        <input id="progresoSearch" type="text" placeholder="Buscar ejercicio..."
+          style="padding-left:34px;font-size:14px"
+          oninput="filtrarProgresoEjercicios(this.value)"
+          onfocus="filtrarProgresoEjercicios(this.value)"
+          onblur="setTimeout(()=>document.getElementById('progresoSearchDrop').style.display='none',180)">
+        <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:15px;color:var(--text3)">🔍</span>
+        <div id="progresoSearchDrop" style="display:none;position:absolute;top:calc(100% + 3px);left:0;right:0;background:var(--bg);border:0.5px solid var(--border2);border-radius:var(--radius-sm);z-index:50;max-height:200px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.12)"></div>
+      </div>
+
+      <!-- Nombre del ejercicio seleccionado + métricas clave -->
+      <div id="progresoHeader" style="margin-bottom:12px"></div>
+
+      <!-- Gráfico principal -->
+      <div class="progress-wrap" style="margin-bottom:12px">
+        <div style="position:relative;height:180px;width:100%"><canvas id="mainChart"></canvas></div>
+      </div>
+
+      <!-- Tabs historial -->
+      <div style="display:flex;gap:0;margin-bottom:12px;border:0.5px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
+        <button id="tabPorEjercicio" class="btn" style="flex:1;border:none;border-radius:0;border-right:0.5px solid var(--border);background:var(--purple);color:#fff;font-size:13px;padding:8px" onclick="switchProgresoTab('ejercicio')">Por ejercicio</button>
+        <button id="tabPorSesion" class="btn" style="flex:1;border:none;border-radius:0;font-size:13px;padding:8px;color:var(--text2)" onclick="switchProgresoTab('sesion')">Por sesión</button>
+      </div>
+
+      <!-- Contenido del tab activo -->
+      <div id="progresoTabContent"></div>
     </div>
 
     <!-- DIETA -->
@@ -1696,19 +1716,157 @@ function acBlur(input){ setTimeout(()=>input.nextElementSibling.classList.remove
 function acSelect(e,name){ e.preventDefault(); const dd=e.currentTarget.closest('.ac-dropdown'); dd.previousElementSibling.value=name; dd.classList.remove('open'); }
 
 // ── PROGRESO ───────────────────────────────────────────────────
-function renderProgreso(exOverride){
-  const exNames=Object.keys(historial); if(!exNames.length){document.getElementById('progresoChips').innerHTML='<div style="color:var(--text2);font-size:13px">Sin historial aún.</div>';return;}
-  if(!selectedProgresoEx||!historial[selectedProgresoEx]) selectedProgresoEx=exNames[0];
-  if(exOverride) selectedProgresoEx=exOverride;
-  const chips=document.getElementById('progresoChips'); chips.innerHTML='';
-  exNames.forEach(ex=>{ const btn=document.createElement('button'); btn.className='chip'+(ex===selectedProgresoEx?' active':''); btn.textContent=ex; btn.onclick=()=>{selectedProgresoEx=ex;renderProgreso();}; chips.appendChild(btn); });
-  const data=historial[selectedProgresoEx],prev=data.length>=2?data[data.length-2]:null,last=data[data.length-1],diff=prev!==null?last-prev:null;
-  document.getElementById('compareCard').innerHTML=prev!==null
-    ?`<div class="row" style="margin-bottom:8px"><div class="flex-1"><div class="card-sub">Penúltima sesión</div><div style="font-size:18px;font-weight:600">${prev} kg</div></div><div style="text-align:right"><div class="card-sub">Última sesión</div><div style="font-size:18px;font-weight:600;color:var(--purple)">${last} kg</div></div></div><div style="font-size:13px;color:${diff>=0?'var(--green)':'var(--red)'}">${diff>=0?'▲ +':'▼ '}${diff} kg ${diff>0?'— ¡Mejora!':diff===0?'— Sin cambio':''}</div>`
-    :`<div class="card-sub">Solo hay una sesión registrada.</div>`;
-  const ph=document.getElementById('progresoHistorial'); const sesEx=[...sesiones].filter(s=>s.ejercicios.some(e=>e.nombre===selectedProgresoEx)).reverse();
-  ph.innerHTML=sesEx.length?sesEx.map(s=>{ const ex=s.ejercicios.find(e=>e.nombre===selectedProgresoEx); const serStr=ex.series.map((sr,i)=>`S${i+1}: ${sr.reps}r×${sr.peso}kg`).join(' · '); return `<div class="card"><div class="row"><div class="flex-1"><div class="card-title" style="font-size:13px">${s.diaNombre}</div><div class="card-sub">${formatDate(s.fecha)} · ${s.rutinaNombre}</div></div></div><div style="margin-top:4px;font-size:12px;color:var(--text2)">${serStr}</div>${ex.nota?`<div style="margin-top:3px;font-size:11px;color:var(--text2);font-style:italic">"${ex.nota}"</div>`:''}</div>`; }).join(''):'<div style="color:var(--text2);font-size:13px">Sin sesiones registradas para este ejercicio.</div>';
-  setTimeout(()=>initMainChart(selectedProgresoEx),50);
+let progresoTabActivo = 'ejercicio';
+
+function renderProgreso(exOverride) {
+  const exNames = Object.keys(historial);
+  if (!exNames.length) {
+    document.getElementById('progresoHeader').innerHTML = '';
+    document.getElementById('progresoTabContent').innerHTML = `
+      <div style="text-align:center;padding:40px 20px;color:var(--text2)">
+        <div style="font-size:36px;margin-bottom:12px">📊</div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:6px">Sin historial todavía</div>
+        <div style="font-size:13px">Completá tu primer entrenamiento para ver el progreso acá.</div>
+      </div>`;
+    return;
+  }
+  if (!selectedProgresoEx || !historial[selectedProgresoEx]) selectedProgresoEx = exNames[0];
+  if (exOverride) selectedProgresoEx = exOverride;
+
+  // Actualizar buscador con ejercicio actual
+  const searchInput = document.getElementById('progresoSearch');
+  if (searchInput && searchInput.value === '') searchInput.placeholder = selectedProgresoEx;
+
+  renderProgresoHeader();
+  switchProgresoTab(progresoTabActivo);
+  setTimeout(() => initMainChart(selectedProgresoEx), 50);
+}
+
+function renderProgresoHeader() {
+  const ex = selectedProgresoEx;
+  const data = historial[ex] || [];
+  const last = data.length ? data[data.length - 1] : null;
+  const prev = data.length >= 2 ? data[data.length - 2] : null;
+  const diff = last !== null && prev !== null ? last - prev : null;
+  const max = data.length ? Math.max(...data) : null;
+  const sesTotal = sesiones.filter(s => s.ejercicios.some(e => e.nombre === ex)).length;
+
+  document.getElementById('progresoHeader').innerHTML = `
+    <div style="margin-bottom:4px">
+      <div style="font-size:20px;font-weight:800">${ex}</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:2px">${sesTotal} sesión${sesTotal!==1?'es':''} registrada${sesTotal!==1?'s':''}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px">
+      <div style="background:var(--bg2);border-radius:var(--radius-sm);padding:10px;text-align:center">
+        <div style="font-size:10px;color:var(--text2);margin-bottom:3px">ÚLTIMO</div>
+        <div style="font-size:18px;font-weight:700;color:var(--purple)">${last !== null ? last + ' kg' : '—'}</div>
+      </div>
+      <div style="background:var(--bg2);border-radius:var(--radius-sm);padding:10px;text-align:center">
+        <div style="font-size:10px;color:var(--text2);margin-bottom:3px">MÁXIMO</div>
+        <div style="font-size:18px;font-weight:700">${max !== null ? max + ' kg' : '—'}</div>
+      </div>
+      <div style="background:var(--bg2);border-radius:var(--radius-sm);padding:10px;text-align:center">
+        <div style="font-size:10px;color:var(--text2);margin-bottom:3px">CAMBIO</div>
+        <div style="font-size:18px;font-weight:700;color:${diff === null ? 'var(--text2)' : diff >= 0 ? 'var(--green)' : 'var(--red)'}">
+          ${diff === null ? '—' : (diff >= 0 ? '+' : '') + diff + ' kg'}
+        </div>
+      </div>
+    </div>`;
+}
+
+function switchProgresoTab(tab) {
+  progresoTabActivo = tab;
+  // actualizar estilo de tabs
+  const tabEj = document.getElementById('tabPorEjercicio');
+  const tabSes = document.getElementById('tabPorSesion');
+  if (tabEj && tabSes) {
+    tabEj.style.background = tab === 'ejercicio' ? 'var(--purple)' : 'transparent';
+    tabEj.style.color = tab === 'ejercicio' ? '#fff' : 'var(--text2)';
+    tabSes.style.background = tab === 'sesion' ? 'var(--purple)' : 'transparent';
+    tabSes.style.color = tab === 'sesion' ? '#fff' : 'var(--text2)';
+  }
+  const c = document.getElementById('progresoTabContent');
+  if (tab === 'ejercicio') renderTabPorEjercicio(c);
+  else renderTabPorSesion(c);
+}
+
+function renderTabPorEjercicio(c) {
+  const ex = selectedProgresoEx;
+  const sesEx = [...sesiones].filter(s => s.ejercicios.some(e => e.nombre === ex)).reverse();
+  if (!sesEx.length) {
+    c.innerHTML = '<div style="color:var(--text2);font-size:13px;padding:8px 0">Sin sesiones registradas para este ejercicio.</div>';
+    return;
+  }
+  c.innerHTML = sesEx.map(s => {
+    const exData = s.ejercicios.find(e => e.nombre === ex);
+    const maxPeso = exData.series.length ? Math.max(...exData.series.map(s => s.peso)) : 0;
+    const serStr = exData.series.map((sr, i) =>
+      `<span style="display:inline-block;background:var(--bg2);border-radius:4px;padding:2px 7px;font-size:11px;margin:2px">S${i+1}: ${sr.reps}r × ${sr.peso}kg</span>`
+    ).join('');
+    return `<div class="card" style="margin-bottom:8px">
+      <div class="row" style="margin-bottom:8px">
+        <div class="flex-1">
+          <div style="font-size:13px;font-weight:600">${formatDate(s.fecha)}</div>
+          <div style="font-size:11px;color:var(--text2)">${s.rutinaNombre} · ${s.diaNombre}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:16px;font-weight:700;color:var(--purple)">${maxPeso} kg</div>
+          <div style="font-size:10px;color:var(--text2)">máx</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:0">${serStr}</div>
+      ${exData.nota ? `<div style="margin-top:6px;font-size:11px;color:var(--text3);font-style:italic">"${exData.nota}"</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderTabPorSesion(c) {
+  if (!sesiones.length) {
+    c.innerHTML = '<div style="color:var(--text2);font-size:13px;padding:8px 0">Sin sesiones registradas todavía.</div>';
+    return;
+  }
+  const recientes = [...sesiones].reverse().slice(0, 20);
+  c.innerHTML = recientes.map(s => {
+    const exList = s.ejercicios.map(ex => {
+      const maxPeso = ex.series.length ? Math.max(...ex.series.map(sr => sr.peso)) : 0;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:0.5px solid var(--border)">
+        <span style="font-size:12px;color:var(--text);cursor:pointer" onclick="seleccionarExProgreso('${ex.nombre.replace(/'/g,"\'")}')">${ex.nombre}</span>
+        <span style="font-size:12px;color:var(--text2)">${ex.series.length} series · ${maxPeso} kg</span>
+      </div>`;
+    }).join('');
+    return `<div class="card" style="margin-bottom:8px">
+      <div class="row" style="margin-bottom:8px">
+        <div class="flex-1">
+          <div style="font-size:14px;font-weight:700">${s.diaNombre}</div>
+          <div style="font-size:11px;color:var(--text2)">${formatDate(s.fecha)} · ${s.rutinaNombre}</div>
+        </div>
+        <div style="font-size:11px;color:var(--text2)">${s.ejercicios.length} ej.</div>
+      </div>
+      ${exList}
+    </div>`;
+  }).join('');
+}
+
+function seleccionarExProgreso(nombre) {
+  if (historial[nombre]) {
+    selectedProgresoEx = nombre;
+    document.getElementById('progresoSearch').value = '';
+    switchProgresoTab('ejercicio');
+    renderProgresoHeader();
+    setTimeout(() => initMainChart(nombre), 50);
+  }
+}
+
+function filtrarProgresoEjercicios(val) {
+  const drop = document.getElementById('progresoSearchDrop');
+  const all = Object.keys(historial).sort();
+  const matches = val ? all.filter(e => e.toLowerCase().includes(val.toLowerCase())) : all;
+  if (!matches.length) { drop.style.display = 'none'; return; }
+  drop.innerHTML = matches.slice(0, 10).map(e =>
+    `<div style="padding:10px 12px;font-size:14px;cursor:pointer;border-bottom:0.5px solid var(--border);color:var(--text)"
+      onmousedown="seleccionarExProgreso('${e.replace(/'/g,"\'")}')">${e}</div>`
+  ).join('');
+  drop.style.display = 'block';
 }
 
 // ── CHARTS ─────────────────────────────────────────────────────
