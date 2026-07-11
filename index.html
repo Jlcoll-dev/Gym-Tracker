@@ -173,6 +173,10 @@
       </div>
       <div class="section-label">Últimas sesiones</div>
       <div id="homeRecentSessions"></div>
+
+      <div style="text-align:center;margin-top:28px;padding-bottom:4px">
+        <div style="font-size:11px;color:var(--text3);letter-spacing:0.04em">Hecho con 💪 por <strong style="color:var(--text2)">juancho.coll</strong></div>
+      </div>
     </div>
 
     <!-- SESIÓN -->
@@ -366,6 +370,22 @@
 
       <div class="section-label">Opciones avanzadas</div>
       <button class="btn btn-full btn-danger" onclick="confirmReset()">Borrar todos los datos</button>
+
+      <div style="margin-top:28px;padding:16px;background:var(--bg2);border-radius:var(--radius);text-align:center">
+        <div style="font-size:20px;margin-bottom:6px">🧃</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.5;margin-bottom:10px">
+          Si te gustó la app, podés agradecerme donándome a mi Mercado Pago<br>
+          <strong style="color:var(--purple);font-size:15px">jl.coll.mp</strong><br>
+          <span style="font-size:12px;color:var(--text2)">¡invitate una Monster! 🤙</span>
+        </div>
+        <button class="btn" style="font-size:12px;padding:6px 14px" onclick="navigator.clipboard.writeText('jl.coll.mp').then(()=>showToast('Alias copiado')).catch(()=>showToast('jl.coll.mp'))">
+          Copiar alias
+        </button>
+      </div>
+
+      <div style="text-align:center;margin-top:20px;padding-bottom:4px">
+        <div style="font-size:11px;color:var(--text3);letter-spacing:0.04em">Hecho con 💪 por <strong style="color:var(--text2)">juancho.coll</strong></div>
+      </div>
     </div>
   </div><!-- /screens -->
 
@@ -415,6 +435,30 @@
       </button>
       <button class="btn btn-full" style="color:var(--text2);border-color:transparent;font-size:13px" onclick="closeICloudModal()">
         Cerrar
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL CAMBIO DE EJERCICIO EN SESIÓN -->
+  <div id="cambioEjercicioModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:200;align-items:flex-end;justify-content:center">
+    <div style="background:var(--bg);border-radius:24px 24px 0 0;padding:24px 24px 36px;max-width:430px;width:100%;margin:0 auto">
+      <div style="font-size:17px;font-weight:700;margin-bottom:4px">Cambiar ejercicio</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:6px" id="cambioEjercicioOriginal"></div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:16px">Solo para esta sesión — la rutina no se modifica.</div>
+
+      <div class="ac-wrap" style="margin-bottom:16px">
+        <input id="cambioEjercicioInput" class="ac-input" type="text"
+          placeholder="Escribí o buscá el ejercicio de reemplazo"
+          style="font-size:15px;padding:10px 12px"
+          oninput="acFilterCambio(this)" onfocus="acFilterCambio(this)" onblur="acBlurCambio(this)">
+        <div id="cambioEjercicioDropdown" class="ac-dropdown"></div>
+      </div>
+
+      <button class="btn btn-primary btn-full" style="padding:13px;font-size:15px;margin-bottom:8px" onclick="confirmarCambioEjercicio()">
+        Confirmar cambio
+      </button>
+      <button class="btn btn-full" style="color:var(--text2);border-color:transparent;font-size:13px" onclick="cerrarModalCambioEjercicio()">
+        Cancelar
       </button>
     </div>
   </div>
@@ -700,12 +744,15 @@ function renderSesionLista() {
           ${done ? '✓' : i + 1}
         </div>
         <div class="flex-1" style="margin-left:10px">
-          <div class="card-title" style="font-size:14px">${ex.nombre}</div>
+          <div class="card-title" style="font-size:14px">${ex.nombre}${ex._reemplazado ? ` <span style="font-size:11px;color:var(--purple)">(reemplazado)</span>` : ''}</div>
           <div class="card-sub">${ex.series.length} series · ${lastText}</div>
         </div>
         ${done
           ? '<span style="font-size:12px;color:var(--green)">Listo</span>'
-          : `<button class="btn ${active?'btn-primary':'btn-sm'} btn-sm" onclick="iniciarEjercicio(${i})">${active?'Empezar':'Ir'}</button>`
+          : `<div style="display:flex;gap:6px;flex-shrink:0">
+               <button class="btn btn-xs" style="color:var(--text2)" onclick="abrirModalCambioEjercicio(${i})" title="Cambiar ejercicio">⇄</button>
+               <button class="btn ${active?'btn-primary':'btn-sm'} btn-sm" onclick="iniciarEjercicio(${i})">${active?'Empezar':'Ir'}</button>
+             </div>`
         }
       </div>`;
     c.appendChild(card);
@@ -736,6 +783,79 @@ function renderSesionLista() {
 
 // Permite cortar el entrenamiento antes de completar todos los ejercicios.
 // Lo ya cargado (series con peso y reps) se guarda igual; lo pendiente se descarta.
+// ── CAMBIO DE EJERCICIO EN SESIÓN ────────────────────────────
+// El cambio es solo para esta sesión — la rutina original no se modifica.
+let _cambioEjercicioIdx = null; // índice del ejercicio que se quiere cambiar
+
+function abrirModalCambioEjercicio(idx) {
+  _cambioEjercicioIdx = idx;
+  const exOriginal = sesiónActiva.ejercicios[idx];
+  document.getElementById('cambioEjercicioOriginal').textContent =
+    `Reemplazar: ${exOriginal._nombreOriginal || exOriginal.nombre}`;
+  document.getElementById('cambioEjercicioInput').value = '';
+  document.getElementById('cambioEjercicioDropdown').classList.remove('open');
+  document.getElementById('cambioEjercicioModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('cambioEjercicioInput')?.focus(), 100);
+}
+
+function cerrarModalCambioEjercicio() {
+  document.getElementById('cambioEjercicioModal').style.display = 'none';
+  _cambioEjercicioIdx = null;
+}
+
+function acFilterCambio(input) {
+  const val = input.value.toLowerCase().trim();
+  const dd = document.getElementById('cambioEjercicioDropdown');
+  const all = getAllKnownExercises();
+  const matches = val ? all.filter(e => e.toLowerCase().includes(val)) : all;
+  if (!matches.length) { dd.classList.remove('open'); return; }
+  dd.innerHTML = matches.slice(0, 8).map(e =>
+    `<div class="ac-item" onmousedown="acSelectCambio(event,'${e.replace(/'/g,"\\'")}')">
+      <span>${e}</span>${historial[e] ? '<span class="ac-item-hist">con historial</span>' : ''}
+    </div>`
+  ).join('');
+  dd.classList.add('open');
+}
+
+function acBlurCambio(input) {
+  setTimeout(() => document.getElementById('cambioEjercicioDropdown').classList.remove('open'), 180);
+}
+
+function acSelectCambio(e, name) {
+  e.preventDefault();
+  document.getElementById('cambioEjercicioInput').value = name;
+  document.getElementById('cambioEjercicioDropdown').classList.remove('open');
+}
+
+function confirmarCambioEjercicio() {
+  const nuevoNombre = document.getElementById('cambioEjercicioInput').value.trim();
+  if (!nuevoNombre) { showToast('Escribí el nombre del ejercicio de reemplazo'); return; }
+
+  const idx = _cambioEjercicioIdx;
+  const exOriginal = sesiónActiva.ejercicios[idx];
+
+  // Guardar el nombre original (para mostrarlo como referencia y restaurarlo la próxima sesión)
+  if (!exOriginal._nombreOriginal) exOriginal._nombreOriginal = exOriginal.nombre;
+
+  // Cambiar el nombre solo en la copia de la sesión activa — la rutina guardada no se toca
+  sesiónActiva.ejercicios[idx] = {
+    ...exOriginal,
+    nombre: nuevoNombre,
+    _nombreOriginal: exOriginal._nombreOriginal,
+    _reemplazado: true,
+  };
+
+  // Resetear el resultado de este ejercicio si no había empezado aún
+  if (sesiónActiva.resultados[idx].series.length === 0) {
+    sesiónActiva.resultados[idx] = { nombre: nuevoNombre, series: [], nota: '' };
+  }
+
+  guardarSesionActiva();
+  cerrarModalCambioEjercicio();
+  showToast(`${exOriginal._nombreOriginal} reemplazado por ${nuevoNombre}`);
+  renderSesionLista();
+}
+
 function confirmarFinalizarAntes() {
   const completados = sesiónActiva.resultados.filter(r => r.series.length > 0).length;
   const total = sesiónActiva.ejercicios.length;
